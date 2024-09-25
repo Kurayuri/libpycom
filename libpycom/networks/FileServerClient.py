@@ -1,12 +1,22 @@
 #! python
 
-import os
-from flask import Flask, send_from_directory, jsonify, send_file, request
-from threading import Thread
-import requests
-from urllib.parse import unquote
-import argparse
+'''
+pyinstaller --clean --hidden-import flask --hidden-import requests  --icon NONE -onefile .\\FileServerClient.py
 
+python FileServerClient.py -s [-t] [<ip>][:<port>] [<file>s...]
+python FileServerClient.py -s -r [<ip>][:<port>] [-p <rx-path>]
+python FileServerClient.py -c -t <ip>[:<port>] [<file>s...]
+python FileServerClient.py [-c] [-r] <ip>[:<port>] [<file>s...] [-p <rx-path>]
+'''
+
+
+import os
+import requests
+import argparse
+from typing import Literal, Iterable
+from flask import Flask, jsonify, send_file, request
+from urllib.parse import unquote
+from pathlib import Path
 
 seq = '/'
 POST_FILE_KEY = 'file'
@@ -24,13 +34,42 @@ class Config:
 
 
 class FileServerClient:
-    def __init__(self, ip=Config.IP, port=Config.Port):
+    def __init__(self, ip=Config.IP, port=Config.Port,
+                 cs_mode: Literal['server', 'client'] = 'client',
+                 txrx_mode: Literal['transimit', 'receive'] = 'receive',
+                 files: Iterable[str] = None,
+                 rx_dir: str = "."
+                 ):
         self.app = Flask(self.__class__.__name__)
         self.ip = ip
         self.port = port
+
+        try:
+            self.server_mode = (cs_mode.lower()[0] == 's')
+            self.client_mode = (cs_mode.lower()[0] == 'c')
+        except Exception:
+            raise f"Invalid cs_mode {cs_mode}"
+
+        try:
+            self.transimit_mode = (txrx_mode.lower()[0] == 't')
+            self.receive_mode = (txrx_mode.lower()[0] == 'r')
+        except Exception:
+            raise TypeError(f"Invalid cs_mode {cs_mode}")
+
+        _txrx_mode = txrx_mode.lower()
+        self.txrx_mode = None
+        if len(_txrx_mode) > 0:
+            if _txrx_mode[0] == 't':
+                self.txrx_mode = 'transimit'
+            elif _txrx_mode[0] == 'r':
+                self.txrx_mode = 'receive'
+        if not self.txrx_mode:
+            raise TypeError(f"Invalid txrx_mode {txrx_mode}")
+
+        self.files = files
+
         self.tx_files = {}
-        self.rx_dir = None
-        self.tx_files = None
+        self.rx_dir = rx_dir
         self.host = f"http://{ip}:{port}"
 
         @self.app.route('/<path:path_or_filename>', methods=['GET'])
@@ -44,7 +83,8 @@ class FileServerClient:
                 path_or_filename = next(iter(self.tx_files))
 
             path_or_filename = unquote(path_or_filename)
-            print("post", path_or_filename)
+            path_or_filename = self.posixify_path(path_or_filename)
+            print(path_or_filename)
 
             if seq in path_or_filename:  # is path
                 filename = os.path.basename(path_or_filename)
@@ -60,7 +100,7 @@ class FileServerClient:
                         path = self.tx_files[filename]
                 else:
                     path = None
-
+            print(path)
             if path is None or not os.path.isfile(path):
                 return jsonify({"Error": f"File {path_or_filename} not found"}), 404
             elif isinstance(path, list):
@@ -95,6 +135,7 @@ class FileServerClient:
 
     def add_tx_files(self, paths):
         for path_or_filename in paths:
+            path_or_filename = self.posixify_path(path_or_filename)
             if os.path.isdir(path_or_filename):
                 path_or_filename = path_or_filename.rstrip(seq)
 
@@ -138,34 +179,35 @@ class FileServerClient:
             except Exception as e:
                 print(f"Failed to Uploaded {filename}: {str(e)}")
 
-    def run(self, args):
-        self.rx_dir = args.rx_dir
+    def run(self):
         if not Config.is_NULL_DEV(self.rx_dir):
             os.makedirs(self.rx_dir, exist_ok=True)
 
-        if args.server:
-            if args.transmit:
-                self.add_tx_files(args.paths)
+        if self.server_mode:
+            if self.transimit_mode:
+                self.add_tx_files(self.files)
                 self.start_server()
 
-            elif args.receive:
+            elif self.receive_mode:
                 self.start_server()
             else:
                 print("Invalid mode. Use -t/--transmit for transmit or -r/--receive for receive.")
 
-        elif args.client:
-            if args.transmit:
+        elif self.client_mode:
+            if self.transimit_mode:
+                self.start_client_tx(self.files)
 
-                self.start_client_tx(args.paths)
-
-            elif args.receive:
-
-                self.start_client_rx(args.paths)
+            elif self.receive_mode:
+                self.start_client_rx(self.files)
             else:
                 print("Invalid mode. Use -t/--transmit for transmit or -r/--receive for receive.")
 
         else:
             print("Invalid mode. Use -s for server or -c for client.")
+
+    @staticmethod
+    def posixify_path(path):
+        return str(Path(path).as_posix())
 
 
 def parse_args():
@@ -221,19 +263,11 @@ def parse_args():
     return args
 
 
-def main():
+if __name__ == "__main__":
     args = parse_args()
     print(args)
+    cs_mode = 'server' if args.server else 'client'
+    txrx_mode = 'transmit' if args.transmit else 'receive'
 
-    server = FileServerClient(args.ip, args.port)
-    server.run(args)
-
-
-if __name__ == "__main__":
-    main()
-'''
-python script.py -s [-t] [<ip>][:<port>] [<file>s...]
-python script.py -s -r [<ip>][:<port>] [-p <rx-path>]
-python script.py -c -t <ip>[:<port>] [<file>s...]
-python script.py [-c] [-r] <ip>[:<port>] [<file>s...] [-p <rx-path>]
-'''
+    server = FileServerClient(args.ip, args.port, cs_mode, txrx_mode, args.paths, args.rx_dir)
+    server.run()
