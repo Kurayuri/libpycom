@@ -4,6 +4,6 @@ libpycom
 '''
 
 from libpycom.SyntaxUtils import SyntaxUtils
-from libpycom.Settings import Settings
+from libpycom.__Settings__ import __Settings__
 
-Settings = Settings()
+Settings = __Settings__()

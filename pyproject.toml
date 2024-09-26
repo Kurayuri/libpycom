@@ -7,11 +7,13 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.10"
-pydantic = "^2.0"
+flask = "*"
 numpy = "*"
-websocket-client = "*"
+pydantic = "^2.0"
 pyyaml = "*"
+requests = "*"
 rich = "*"
+websocket-client = "*"
 
 [build-system]
 requires = ["poetry-core"]

@@ -25,16 +25,14 @@ import requests
 import argparse
 import time
 import enum
-import io
-from libpycom.message import Messager, LEVEL
-from libpycom.functions.Timer import Timer
-from requests_toolbelt.multipart.encoder import MultipartEncoder
 from rich.progress import Progress, BarColumn, TaskProgressColumn, TimeElapsedColumn, TimeRemainingColumn, RenderableColumn, SpinnerColumn, TransferSpeedColumn, DownloadColumn
-from rich.console import Console
-from typing import Literal, Iterable, Any
+from typing import Iterable, Any
 from flask import Flask, jsonify, send_file, request, stream_with_context, Response
 from urllib.parse import unquote, quote
 from pathlib import Path
+from libpycom.Messager import Messager, LEVEL
+from libpycom.message import message
+from libpycom.functions.Timer import Timer
 
 
 class FileProgressWrapper:
@@ -209,56 +207,36 @@ class HeadersHandle:
 
 
 class FileServerClientFlag(enum.IntFlag):
+    Off = 0
     Client = enum.auto()
     Server = enum.auto()
     Transimit = enum.auto()
     Receive = enum.auto()
 
     ChunkAuto = enum.auto()
-    ChunkFalse = enum.auto()
-    ChunkTrue = enum.auto()
+    ChunkOff = enum.auto()
+    ChunkOn = enum.auto()
 
     Fast = ChunkAuto
-    Stardard = ChunkFalse
+    Stardard = ChunkOff
+
+    All = ~0
 
 
 class FileServerClient:
     def __init__(self, ip=Config.IP, port=Config.Port,
-                 flag: FileServerClientFlag = FileServerClientFlag.Client | FileServerClientFlag.Receive | FileServerClientFlag.Fast,
-                 cs_mode: Literal['server', 'client'] = 'client',
-                 txrx_mode: Literal['transimit', 'receive'] = 'receive',
                  files: Iterable[str] = None,
                  rx_dir: str = ".",
-                 chunked: Literal['auto', 'false' 'true'] = '',
+                 flag: FileServerClientFlag = FileServerClientFlag.Client | FileServerClientFlag.Receive | FileServerClientFlag.Fast,
                  level: LEVEL = LEVEL.INFO
                  ):
 
         # Args
         self.ip = ip
         self.port = port
-        self.chucked = chunked
+        # self.chucked = chunked
 
-        try:
-            self.server_mode = (cs_mode.lower()[0] == 's')
-            self.client_mode = (cs_mode.lower()[0] == 'c')
-        except Exception:
-            raise f"Invalid cs_mode {cs_mode}"
-
-        try:
-            self.transimit_mode = (txrx_mode.lower()[0] == 't')
-            self.receive_mode = (txrx_mode.lower()[0] == 'r')
-        except Exception:
-            raise TypeError(f"Invalid cs_mode {cs_mode}")
-
-        _txrx_mode = txrx_mode.lower()
-        self.txrx_mode = None
-        if len(_txrx_mode) > 0:
-            if _txrx_mode[0] == 't':
-                self.txrx_mode = 'transimit'
-            elif _txrx_mode[0] == 'r':
-                self.txrx_mode = 'receive'
-        if not self.txrx_mode:
-            raise TypeError(f"Invalid txrx_mode {txrx_mode}")
+        self.flag = flag
 
         self.files = files
 
@@ -276,21 +254,21 @@ class FileServerClient:
         @self.app.route('/<path:path_or_filename>', methods=['GET'])
         @self.app.route('/', methods=['GET'])
         def server_tx_file(path_or_filename=None):
-            print("i:", path_or_filename)
+            self.messager.debug(f"Get Request: \t{path_or_filename}")
             path = None
 
-            # "/"
+            # route "/", get the one tx_file
             if len(self.tx_files) == 1 and path_or_filename is None:
                 path_or_filename = next(iter(self.tx_files))
 
+            # Get path
             if path_or_filename is not None:
-                path_or_filename = unquote(path_or_filename)
-                path_or_filename = self.posixify_path(path_or_filename)
+                path_or_filename = self.posixify_path(unquote(path_or_filename))
 
                 if seq in path_or_filename:  # is path
                     filename = os.path.basename(path_or_filename)
                     path = path_or_filename
-                else:  # is File
+                else:  # is filename
                     filename = path_or_filename
                     if self.tx_files.get(filename) is not None:
                         if len(self.tx_files[filename]) == 0:
@@ -300,24 +278,26 @@ class FileServerClient:
                         else:
                             path = self.tx_files[filename]
 
-            print(path)
+            self.messager.debug(f"Locate file: \t{path_or_filename} to {path}")
 
-            if path is None or not os.path.isfile(path):
+            # Response
+            if path is None or not os.path.isfile(path):  # Not Found
                 return jsonify({"Error": f"File {path_or_filename} not found"}), 404
-            elif isinstance(path, list):
+            elif isinstance(path, list):  # Multi files
                 return jsonify({"Error": f"Multi files {path} exsit"}), 404
             else:
-                # f = open(path, 'rb')
+                if self.flag & FileServerClientFlag.ChunkOff:
+                    return send_file(path, as_attachment=True, download_name=filename)
+                else:
+                    progress = self.messager.new_progress()
+                    f = FileProgressWrapper(path, progress=progress)
+                    filesize = f.total
 
-                progress = self.messager.new_progress()
-                ff = FileProgressWrapper(path, progress=progress)
-                filesize = ff.total
+                    headers = {}
+                    headers = HeadersHandle.set_Filename(filename, headers)
+                    headers = HeadersHandle.set_Size(filesize, headers)
 
-                headers = {}
-                headers = HeadersHandle.set_Filename(filename, headers)
-                headers = HeadersHandle.set_Size(filesize, headers)
-
-                return Response(ff.read_generator(), headers=headers)
+                return Response(f, headers=headers)
 
         # --------------------------------------------------------- #
         # ----------------------- Server RX ----------------------- #
@@ -344,26 +324,6 @@ class FileServerClient:
 
             # Update files_to_send
             return jsonify({"success": f"File {filename} uploaded successfully."}), 200
-
-    def start_server(self):
-
-        print(f"Server started at {self.host}")
-
-        self.app.run(host=self.ip, port=self.port)
-
-        print(f"Server ended at{self.host}")
-
-    def add_tx_files(self, paths):
-        for path_or_filename in paths:
-            path_or_filename = self.posixify_path(path_or_filename)
-            if os.path.isdir(path_or_filename):
-                path_or_filename = path_or_filename.rstrip(seq)
-
-            basename = os.path.basename(path_or_filename)
-            self.tx_files.setdefault(basename, [])
-            self.tx_files[basename].append(path_or_filename)
-
-        print(self.tx_files)
 
     # --------------------------------------------------------- #
     # ----------------------- Client RX ----------------------- #
@@ -393,9 +353,10 @@ class FileServerClient:
                     for chunk in self.messager.message_progress(content, total=file_size):
                         f.write(chunk)
 
-                print(f"Downloaded: {filename}")
+                self.messager.info(f"Downloaded: {filename}")
             else:
-                print(f"Error downloading {filename}: {response.status_code} {response.json().get('Error')}")
+                self.messager.info(
+                    f"Error downloading {filename}: {response.status_code} {response.json().get('Error')}")
 
     # --------------------------------------------------------- #
     # ----------------------- Client TX ----------------------- #
@@ -420,40 +381,64 @@ class FileServerClient:
             #     progress: Progress
             #     f = progress.wrap_file(f, total=filesize)
             #     progress.start()
-            response = requests.post(url, headers=headers, data=f.read_generator(), stream=True)
+
+            if self.flag & FileServerClientFlag.ChunkOn:
+                response = requests.post(url, headers=headers, data=f.read_generator(), stream=True)
+            else:
+                response = requests.post(url, headers=headers, data=f, stream=True)
+
             # progress.stop()
             f.close()
 
             if response.status_code == 200:
-                print(f"Uploaded: {filename}")
+                self.messager.info(f"Uploaded: {filename}")
             else:
-                print(f"Error Uploaded {filename}: {response.json().get('Error')}")
+                self.messager.info(f"Error Uploaded {filename}: {response.json().get('Error')}")
 
     def run(self):
         if not Config.isDevnull(self.rx_dir):
             os.makedirs(self.rx_dir, exist_ok=True)
 
-        if self.server_mode:
-            if self.transimit_mode:
+        if self.flag & FileServerClientFlag.Server:
+            if self.flag & FileServerClientFlag.Transimit:
                 self.add_tx_files(self.files)
                 self.start_server()
 
-            elif self.receive_mode:
+            elif self.flag & FileServerClientFlag.Receive:
                 self.start_server()
             else:
-                print("Invalid mode. Use -t/--transmit for transmit or -r/--receive for receive.")
+                self.messager.info("Invalid transmit/receive mode")
 
-        elif self.client_mode:
-            if self.transimit_mode:
+        elif self.flag & FileServerClientFlag.Client:
+            if self.flag & FileServerClientFlag.Transimit:
                 self.start_client_tx(self.files)
 
-            elif self.receive_mode:
+            elif self.flag & FileServerClientFlag.Receive:
                 self.start_client_rx(self.files)
             else:
-                print("Invalid mode. Use -t/--transmit for transmit or -r/--receive for receive.")
+                self.messager.info("Invalid transmit/receive mode")
 
         else:
-            print("Invalid mode. Use -s for server or -c for client.")
+            self.messager.info("Invalid server/client mode")
+
+    def start_server(self):
+        self.messager.info(f"Server started at {self.host}")
+
+        self.app.run(host=self.ip, port=self.port)
+
+        self.messager.info(f"Server ended at{self.host}")
+
+    def add_tx_files(self, paths):
+        for path_or_filename in paths:
+            path_or_filename = self.posixify_path(path_or_filename)
+            if os.path.isdir(path_or_filename):
+                path_or_filename = path_or_filename.rstrip(seq)
+
+            basename = os.path.basename(path_or_filename)
+            self.tx_files.setdefault(basename, [])
+            self.tx_files[basename].append(path_or_filename)
+
+        self.messager.info(self.tx_files)
 
     @staticmethod
     def posixify_path(path):
@@ -473,16 +458,33 @@ def parse_args():
     action_group.add_argument('-t', '--transmit', action='store_true', help="Enable transmit mode (default for server)")
     action_group.add_argument('-r', '--receive', action='store_true', help="Enable receive mode (default for client)")
 
-    parser.add_argument("-d", "--rx_dir", metavar="<Dir>", type=str, default=Config.RX_DirPath, help="Path of directory to save received files")
+    parser.add_argument(
+        "-d",
+        "--rx_dir",
+        metavar="<Dir>",
+        type=str,
+        default=Config.RX_DirPath,
+        help="Path of directory to save received files")
 
     # IP and port
-    parser.add_argument('[<IP>]:[<Port>]', help=f"Target IP address and optional port (default: {Config.IP}:{Config.Port})")
+    parser.add_argument(
+        '[<IP>]:[<Port>]',
+        help=f"Target IP address and optional port (default: {Config.IP}:{Config.Port})")
 
     # 解析接收路径或文件列表
     parser.add_argument('<File>', nargs='*', type=str, help="Files or paths to transmit or receive (default: .)")
 
     parser.add_argument("-v", "--verbose", action='store_true', help="Verbose output")
-    parser.add_argument("-f", "--fast", action='store_true', help="Chunked transfer encoding")
+
+    chunk_group = parser.add_mutually_exclusive_group(required=False)
+
+    chunk_group.add_argument("-u", "--unchunked", action='store_true', help="Unchunked transfer encoding")
+    chunk_group.add_argument("-e", "--chunked", action='store_true', help="Chunked transfer encoding")
+    chunk_group.add_argument(
+        "-a",
+        "--auto",
+        action='store_true',
+        help="The best way to determine transfer encoding (default: unchunked for client transmit; chunked for server transmit)")
 
     # 解析参数
     args = parser.parse_args()
@@ -502,6 +504,9 @@ def parse_args():
         elif args.client:
             args.receive = True  # 如果客户端模式被指定，默认为传输模式
 
+    if not args.unchunked and not args.chunked and not args.auto:
+        args.auto = True
+
     ip_port = getattr(args, '[<IP>]:[<Port>]')
     if getattr(args, '[<IP>]:[<Port>]'):
         ip_port = ip_port.rsplit(":", 1)
@@ -518,11 +523,18 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    print(args)
-    cs_mode = 'server' if args.server else 'client'
-    txrx_mode = 'transmit' if args.transmit else 'receive'
-    level = LEVEL.DEBUG if args.verbose else LEVEL.INFO
-    print(level)
+    message(args)
+    flag = FileServerClientFlag.Off
+    flag |= FileServerClientFlag.Server if args.server else FileServerClientFlag.Client
+    flag |= FileServerClientFlag.Transimit if args.transmit else FileServerClientFlag.Receive
+    if args.unchunked:
+        flag |= FileServerClientFlag.ChunkOff
+    elif args.chunked:
+        flag |= FileServerClientFlag.ChunkOn
+    else:
+        flag |= FileServerClientFlag.ChunkAuto
 
-    server = FileServerClient(args.ip, args.port, cs_mode, txrx_mode, args.paths, args.rx_dir, level, args.chunked)
+    level = LEVEL.DEBUG if args.verbose else LEVEL.INFO
+
+    server = FileServerClient(args.ip, args.port, args.paths, args.rx_dir, flag, level)
     server.run()

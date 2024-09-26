@@ -1,7 +1,7 @@
-from libpycom.message import LEVEL, Messager
+from libpycom.Messager import Messager
 
 
-class Settings:
+class __Settings__:
     def __init__(self) -> None:
         self._Messager = Messager()
 
