@@ -1,7 +1,7 @@
 #! python
 
 '''
-pyinstaller --clean --hidden-import flask --hidden-import requests  --icon NONE -onefile .\\FileServerClient.py
+pyinstaller --clean --hidden-import flask --hidden-import requests --hidden-import rich --icon NONE --onefile ./FileServerClient.py
 
 python FileServerClient.py -s [-t] [<ip>][:<port>] [<file>s...]
 python FileServerClient.py -s -r [<ip>][:<port>] [-p <rx-path>]
@@ -11,26 +11,147 @@ python FileServerClient.py [-c] [-r] <ip>[:<port>] [<file>s...] [-p <rx-path>]
 
 
 import os
+import re
 import requests
 import argparse
-from typing import Literal, Iterable
+import time
+import io
+from libpycom.message import Messager, LEVEL
+from requests_toolbelt.multipart.encoder import MultipartEncoder
+from rich.progress import Progress, BarColumn, TaskProgressColumn, TimeElapsedColumn, TimeRemainingColumn, RenderableColumn, SpinnerColumn, TransferSpeedColumn, DownloadColumn
+from rich.console import Console
+from typing import Literal, Iterable, Any
 from flask import Flask, jsonify, send_file, request
-from urllib.parse import unquote
+from urllib.parse import unquote, quote
 from pathlib import Path
+
+
+class FileProgressWrapper(io.BytesIO):
+    def __init__(self, file, mode: str = 'rb', progress: Progress = None, **kwargs):
+        self.file_path = file
+        self.mode = mode  # Requried: requests/utils.py/super_len:'''if "b" not in o.mode'''
+        self.file = open(file, mode, **kwargs)
+        self.progress = progress
+
+        if progress:
+            self.task = self.progress.add_task("", total=os.path.getsize(self.file_path))
+            progress.start()
+
+    def read(self, *args, **kwargs):
+        chunk = self.file.read(Config.ChunkSize)
+        if self.progress:
+            self.progress.update(self.task, advance=len(chunk))
+        return chunk
+    
+
+    # Requried:
+    # requests/models.py/PreparedRequest/prepare_body/:'''is_stream=all([hasattr(data,"__iter__"),notisinstance(data,(basestring,list,tuple,Mapping)),])''',
+    # used for exam body whether is stream
+
+    def __iter__(self):
+        return self.file.__iter__()
+
+    def __next__(self):
+        return self.file.__next__()
+
+    # Requried:
+    # requests/utils.py/super_len:'''fileno = o.fileno()''', used for getting file size
+    def fileno(self):
+        return self.file.fileno()
+
+    def close(self):
+        self.file.close()
+        self.progress.stop()
+
 
 seq = '/'
 POST_FILE_KEY = 'file'
 
 
+def new_progress():
+    return Progress(
+        SpinnerColumn(),
+        "[progress.description]{task.description}",
+        DownloadColumn(),
+        BarColumn(),
+        TaskProgressColumn(),
+        TimeElapsedColumn(),
+        "/",
+        TimeRemainingColumn(),
+        RenderableColumn(),
+        TransferSpeedColumn(),
+    )
+
+
+def new_progress_track(
+    sequence: Iterable[Any],
+    total: int = None,
+    description: str = "",
+) -> Iterable[Any]:
+
+    progress = new_progress()
+
+    with progress:
+        task = progress.add_task(description, total=total)
+        for item in sequence:
+            yield item
+            progress.update(task, advance=len(item), total=total)
+
+
 class Config:
     IP = "0.0.0.0"
-    Port = 6666
-    RX_DIRPATH = "."
-    NULL_DEV = "/dev/null" if os.name != 'nt' else 'nul'
+    Port = 8888
+    RX_DirPath = "."
+    NullDev = os.devnull
+    ChunkSize = 1 * (2**(2 * 10))  # 1 MiB
+
+    @staticmethod
+    def FILENAME():
+        return f"fsc_file_{time.time()}"
 
     @classmethod
-    def is_NULL_DEV(cls, path):
-        return path == cls.NULL_DEV
+    def isDevnull(cls, path):
+        return path == cls.NullDev
+
+
+class HeadersHandle:
+    @staticmethod
+    def get_Filename(headers):
+        content_disposition = headers.get("Content-Disposition") or ""
+        filename = re.findall('filename=(.+)', content_disposition)
+        filename = filename[0] if filename else Config.FILENAME()
+        return filename
+
+    def set_Filename(value, headers=None):
+        if headers is None:
+            headers = {}
+        _header = {
+            "Content-Disposition": f"attachment; filename={quote(value)}"
+        }
+        headers = headers.copy()
+        headers.update(_header)
+        return headers
+
+    @staticmethod
+    def get_Size(headers):
+        file_size = int(headers.get('Content-Length') or 0)
+        return file_size
+
+    @staticmethod
+    def set_Size(value=None, file=None, headers=None):
+        if headers is None:
+            headers = {}
+
+        if value is None:
+            value = os.path.getsize(file)
+
+        _header = {
+            "Content-Length": f"1"
+        }
+
+        headers = headers.copy()
+        headers.update(_header)
+        return headers
 
 
 class FileServerClient:
@@ -38,9 +159,11 @@ class FileServerClient:
                  cs_mode: Literal['server', 'client'] = 'client',
                  txrx_mode: Literal['transimit', 'receive'] = 'receive',
                  files: Iterable[str] = None,
-                 rx_dir: str = "."
+                 rx_dir: str = ".",
+                 level: LEVEL = LEVEL.INFO
                  ):
-        self.app = Flask(self.__class__.__name__)
+
+        # Args
         self.ip = ip
         self.port = port
 
@@ -72,58 +195,79 @@ class FileServerClient:
         self.rx_dir = rx_dir
         self.host = f"http://{ip}:{port}"
 
+        # Objects
+        self.messager = Messager(level, level, NewProgress=new_progress, NewProgressTrack=new_progress_track)
+        self.app = Flask(self.__class__.__name__)
+
+        # --------------------------------------------------------- #
+        # ----------------------- Server TX ----------------------- #
+        # --------------------------------------------------------- #
         @self.app.route('/<path:path_or_filename>', methods=['GET'])
         @self.app.route('/', methods=['GET'])
         def server_tx_file(path_or_filename=None):
-            print(path_or_filename)
+            print("i:", path_or_filename)
             path = None
 
             # "/"
             if len(self.tx_files) == 1 and path_or_filename is None:
                 path_or_filename = next(iter(self.tx_files))
 
-            path_or_filename = unquote(path_or_filename)
-            path_or_filename = self.posixify_path(path_or_filename)
-            print(path_or_filename)
+            if path_or_filename is not None:
+                path_or_filename = unquote(path_or_filename)
+                path_or_filename = self.posixify_path(path_or_filename)
 
-            if seq in path_or_filename:  # is path
-                filename = os.path.basename(path_or_filename)
-                path = path_or_filename
-            else:  # is File
-                filename = path_or_filename
-                if self.tx_files.get(filename) is not None:
-                    if len(self.tx_files[filename]) == 0:
-                        path = None
-                    elif len(self.tx_files[filename]) == 1:
-                        path = self.tx_files[filename][0]
-                    else:
-                        path = self.tx_files[filename]
-                else:
-                    path = None
+                if seq in path_or_filename:  # is path
+                    filename = os.path.basename(path_or_filename)
+                    path = path_or_filename
+                else:  # is File
+                    filename = path_or_filename
+                    if self.tx_files.get(filename) is not None:
+                        if len(self.tx_files[filename]) == 0:
+                            path = None
+                        elif len(self.tx_files[filename]) == 1:
+                            path = self.tx_files[filename][0]
+                        else:
+                            path = self.tx_files[filename]
+
             print(path)
+
             if path is None or not os.path.isfile(path):
                 return jsonify({"Error": f"File {path_or_filename} not found"}), 404
             elif isinstance(path, list):
                 return jsonify({"Error": f"Multi files {path} exsit"}), 404
             else:
-                return send_file(path, download_name=filename)
+                progress = self.messager.new_progress()
+                # print
+                # f = FileProgressWrapper(path,progress=progress)
+                path=open(path,"rb")
+                return send_file(path, as_attachment=True, download_name=filename)
 
+        # --------------------------------------------------------- #
+        # ----------------------- Server RX ----------------------- #
+        # --------------------------------------------------------- #
         @self.app.route('/', methods=['POST'])
         def servers_rx_file():
-            if 'file' not in request.files:
-                return jsonify({"Error": "No file part"}), 400
-
-            file = request.files[POST_FILE_KEY]
-            if file.filename == '':
-                return jsonify({"Error": "No selected file"}), 400
-
             # Save the file
-            rx_filepath = os.path.join(self.rx_dir, file.filename) if not Config.is_NULL_DEV(self.rx_dir) else self.rx_dir
+            filename = HeadersHandle.get_Filename(request.headers)
+            file_size = HeadersHandle.get_Size(request.headers)
 
-            file.save(rx_filepath)
+            self.messager.debug(request.headers)
+            self.messager.debug(filename)
+
+            rx_filepath = os.path.join(self.rx_dir, filename) if not Config.isDevnull(self.rx_dir) else self.rx_dir
+
+            file_size = int(request.content_length or 0)
+
+            def content():
+                while chunk := request.stream.read(Config.ChunkSize):
+                    yield chunk
+
+            with open(rx_filepath, 'wb') as f:
+                for chunk in self.messager.message_progress(content(), total=file_size, description=""):
+                    f.write(chunk)
 
             # Update files_to_send
-            return jsonify({"success": f"File {file.filename} uploaded successfully."}), 200
+            return jsonify({"success": f"File {filename} uploaded successfully."}), 200
 
     def start_server(self):
 
@@ -145,42 +289,61 @@ class FileServerClient:
 
         print(self.tx_files)
 
+    # --------------------------------------------------------- #
+    # ----------------------- Client RX ----------------------- #
+    # --------------------------------------------------------- #
+
     def start_client_rx(self, paths):
+        # Default "/"
+        if len(paths) == 0:
+            paths = [""]
 
         for path in paths:
             filename = os.path.basename(path)
-            url = f"{self.host}/{path}"
-            try:
-                response = requests.get(url)
-                if response.status_code == 200:
-                    rx_filepath = os.path.join(self.rx_dir, filename) if not Config.is_NULL_DEV(self.rx_dir) else self.rx_dir
 
-                    with open(rx_filepath, 'wb') as f:
-                        f.write(response.content)
-                    print(f"Downloaded: {filename}")
-                else:
-                    print(f"Error downloading {filename}: {response.status_code} {response.json().get('Error')}")
-            except Exception as e:
-                print(f"Failed to download {filename}: {str(e)}")
+            url = f"{self.host}/{path}"
+            response = requests.get(url, stream=True)
+
+            if response.status_code == 200:
+                self.messager.debug(response.headers)
+
+                if not filename:
+                    filename = HeadersHandle.get_Filename(response.headers)
+                rx_filepath = os.path.join(self.rx_dir, filename) if not Config.isDevnull(self.rx_dir) else self.rx_dir
+
+                file_size = HeadersHandle.get_Size(response.headers)
+                content = response.iter_content(chunk_size=Config.ChunkSize)
+                with open(rx_filepath, 'wb') as f:
+                    for chunk in self.messager.message_progress(content, total=file_size):
+                        f.write(chunk)
+
+                print(f"Downloaded: {filename}")
+            else:
+                print(f"Error downloading {filename}: {response.status_code} {response.json().get('Error')}")
+
+    # --------------------------------------------------------- #
+    # ----------------------- Client TX ----------------------- #
+    # --------------------------------------------------------- #
 
     def start_client_tx(self, paths):
         for path in paths:
             filename = os.path.basename(path)
             url = f"{self.host}"
-            try:
-                f = open(path, 'rb')
-                files = {POST_FILE_KEY: (filename, f)}
-                response = requests.post(url, files=files)
-                f.close()
-                if response.status_code == 200:
-                    print(f"Uploaded: {filename}")
-                else:
-                    print(f"Error Uploaded {filename}: {response.json().get('error')}")
-            except Exception as e:
-                print(f"Failed to Uploaded {filename}: {str(e)}")
+
+            headers = HeadersHandle.set_Filename(filename)
+
+            progress = self.messager.new_progress()
+            f = FileProgressWrapper(path, progress=progress)
+            response = requests.post(url, headers=headers, data=f, stream=True)
+
+            if response.status_code == 200:
+                print(f"Uploaded: {filename}")
+            else:
+                print(f"Error Uploaded {filename}: {response.json().get('Error')}")
+            f.close()
 
     def run(self):
-        if not Config.is_NULL_DEV(self.rx_dir):
+        if not Config.isDevnull(self.rx_dir):
             os.makedirs(self.rx_dir, exist_ok=True)
 
         if self.server_mode:
@@ -223,13 +386,15 @@ def parse_args():
     action_group.add_argument('-t', '--transmit', action='store_true', help="Enable transmit mode (default for server)")
     action_group.add_argument('-r', '--receive', action='store_true', help="Enable receive mode (default for client)")
 
-    parser.add_argument("-d", "--rx_dir", metavar="<Dir>", type=str, default=Config.RX_DIRPATH, help="Path of directory to save received files")
+    parser.add_argument("-d", "--rx_dir", metavar="<Dir>", type=str, default=Config.RX_DirPath, help="Path of directory to save received files")
 
     # IP and port
-    parser.add_argument('[<IP>]:[<Port>]', help="Target IP address and optional port (default: 0.0.0.0:6666)")
+    parser.add_argument('[<IP>]:[<Port>]', help=f"Target IP address and optional port (default: {Config.IP}:{Config.Port})")
 
     # 解析接收路径或文件列表
     parser.add_argument('<File>', nargs='*', type=str, help="Files or paths to transmit or receive (default: .)")
+
+    parser.add_argument("-v", "--verbose", action='store_true', help="Verbose output")
 
     # 解析参数
     args = parser.parse_args()
@@ -268,6 +433,8 @@ if __name__ == "__main__":
     print(args)
     cs_mode = 'server' if args.server else 'client'
     txrx_mode = 'transmit' if args.transmit else 'receive'
+    level = LEVEL.DEBUG if args.verbose else LEVEL.INFO
+    print(level)
 
-    server = FileServerClient(args.ip, args.port, cs_mode, txrx_mode, args.paths, args.rx_dir)
+    server = FileServerClient(args.ip, args.port, cs_mode, txrx_mode, args.paths, args.rx_dir, level)
     server.run()

@@ -1,1 +1,1 @@
-from io.io import handle_io
+from .io import handle_io

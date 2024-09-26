@@ -11,6 +11,7 @@ pydantic = "^2.0"
 numpy = "*"
 websocket-client = "*"
 pyyaml = "*"
+rich = "*"
 
 [build-system]
 requires = ["poetry-core"]

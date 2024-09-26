@@ -1,4 +1,4 @@
-from commonlib.aliases import *
+from libpycom.aliases import *
 from typing import cast, NewType, Union, TypeAlias
 
 
