@@ -27,12 +27,12 @@ import time
 import enum
 from rich.progress import Progress, BarColumn, TaskProgressColumn, TimeElapsedColumn, TimeRemainingColumn, RenderableColumn, SpinnerColumn, TransferSpeedColumn, DownloadColumn
 from typing import Iterable, Any
-from flask import Flask, jsonify, send_file, request, stream_with_context, Response
-from urllib.parse import unquote, quote
+from flask import Flask, jsonify, send_file, request, Response
+from urllib.parse import unquote
 from pathlib import Path
 from libpycom.Messager import Messager, LEVEL
 from libpycom.message import message
-from libpycom.functions.Timer import Timer
+from libpycom.networks.HeaderHandle import HeadersHandle
 
 
 class FileProgressWrapper:
@@ -136,76 +136,6 @@ class Config:
         return path == cls.NullDev
 
 
-class HeadersHandle:
-    @staticmethod
-    def get_Filename(headers):
-        content_disposition = headers.get("Content-Disposition") or ""
-        filename = re.findall('filename=(.+)', content_disposition)
-        filename = filename[0] if filename else Config.FILENAME()
-        return filename
-
-    def set_Filename(value, headers=None):
-        if headers is None:
-            headers = {}
-        _header = {
-            "Content-Disposition": f"attachment; filename={quote(value)}"
-        }
-        headers = headers.copy()
-        headers.update(_header)
-        return headers
-
-    @staticmethod
-    def get_ContentLength(headers):
-        file_size = int(headers.get('Content-Length') or 0)
-        return file_size
-
-    @staticmethod
-    def set_ContentLength(value=None, headers=None):
-        if headers is None:
-            headers = {}
-
-        _header = {
-            "Content-Length": f"{int(value)}"
-        }
-
-        headers = headers.copy()
-        headers.update(_header)
-        return headers
-
-    @staticmethod
-    def get_FileSize(headers):
-        file_size = int(headers.get('File-Size') or 0)
-        return file_size
-
-    @staticmethod
-    def set_FileSize(value=None, file=None, headers=None):
-        if headers is None:
-            headers = {}
-
-        if value is None:
-            value = os.path.getsize(file)
-
-        _header = {
-            "File-Size": f"{int(value)}"
-        }
-
-        headers = headers.copy()
-        headers.update(_header)
-        return headers
-
-    @staticmethod
-    def get_Size(headers):
-        if not (size := HeadersHandle.get_ContentLength(headers)):
-            size = HeadersHandle.get_FileSize(headers)
-        return size
-
-    @staticmethod
-    def set_Size(value=None, headers=None):
-        headers = HeadersHandle.set_ContentLength(value, headers)
-        headers = HeadersHandle.set_FileSize(value, headers)
-        return headers
-
-
 class FileServerClientFlag(enum.IntFlag):
     Off = 0
     Client = enum.auto()
@@ -287,6 +217,7 @@ class FileServerClient:
                 return jsonify({"Error": f"Multi files {path} exsit"}), 404
             else:
                 if self.flag & FileServerClientFlag.ChunkOff:
+                    self.messager.debug(f"Send unchunked: \t{path}")
                     return send_file(path, as_attachment=True, download_name=filename)
                 else:
                     progress = self.messager.new_progress()
@@ -296,8 +227,9 @@ class FileServerClient:
                     headers = {}
                     headers = HeadersHandle.set_Filename(filename, headers)
                     headers = HeadersHandle.set_Size(filesize, headers)
+                    self.messager.debug(f"Send chunked: \t{path} {headers}")
 
-                return Response(f, headers=headers)
+                    return Response(f.read_generator(), headers=headers)
 
         # --------------------------------------------------------- #
         # ----------------------- Server RX ----------------------- #
@@ -308,6 +240,8 @@ class FileServerClient:
             # Save the file
             filename = HeadersHandle.get_Filename(request.headers)
             filesize = HeadersHandle.get_Size(request.headers)
+
+            filename = filename if filename else Config.FILENAME()
 
             self.messager.debug(request.headers)
             self.messager.debug(filename)
@@ -344,7 +278,9 @@ class FileServerClient:
                 self.messager.debug(response.headers)
 
                 if not filename:
-                    filename = HeadersHandle.get_Filename(response.headers)
+                    if not (filename := HeadersHandle.get_Filename(response.headers)):
+                        filename = Config.FILENAME()
+
                 rx_filepath = os.path.join(self.rx_dir, filename) if not Config.isDevnull(self.rx_dir) else self.rx_dir
 
                 file_size = HeadersHandle.get_ContentLength(response.headers)
