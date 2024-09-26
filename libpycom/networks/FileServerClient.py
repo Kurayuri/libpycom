@@ -7,6 +7,15 @@ python FileServerClient.py -s [-t] [<ip>][:<port>] [<file>s...]
 python FileServerClient.py -s -r [<ip>][:<port>] [-p <rx-path>]
 python FileServerClient.py -c -t <ip>[:<port>] [<file>s...]
 python FileServerClient.py [-c] [-r] <ip>[:<port>] [<file>s...] [-p <rx-path>]
+
+client tx unchunk 1M
+
+uchk 1.8
+yuansheng open 1.1
+my wrap 3.4
+
+Resp 3.5
+
 '''
 
 
@@ -15,18 +24,20 @@ import re
 import requests
 import argparse
 import time
+import enum
 import io
 from libpycom.message import Messager, LEVEL
+from libpycom.functions.Timer import Timer
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 from rich.progress import Progress, BarColumn, TaskProgressColumn, TimeElapsedColumn, TimeRemainingColumn, RenderableColumn, SpinnerColumn, TransferSpeedColumn, DownloadColumn
 from rich.console import Console
 from typing import Literal, Iterable, Any
-from flask import Flask, jsonify, send_file, request
+from flask import Flask, jsonify, send_file, request, stream_with_context, Response
 from urllib.parse import unquote, quote
 from pathlib import Path
 
 
-class FileProgressWrapper(io.BytesIO):
+class FileProgressWrapper:
     def __init__(self, file, mode: str = 'rb', progress: Progress = None, **kwargs):
         self.file_path = file
         self.mode = mode  # Requried: requests/utils.py/super_len:'''if "b" not in o.mode'''
@@ -34,15 +45,24 @@ class FileProgressWrapper(io.BytesIO):
         self.progress = progress
 
         if progress:
-            self.task = self.progress.add_task("", total=os.path.getsize(self.file_path))
+            self.task = self.progress.add_task("", total=self.total)
             progress.start()
+
+    @property
+    def total(self):
+        return os.path.getsize(self.file_path)
 
     def read(self, *args, **kwargs):
         chunk = self.file.read(Config.ChunkSize)
         if self.progress:
             self.progress.update(self.task, advance=len(chunk))
         return chunk
-    
+
+    def read_generator(self):
+        while chunk := self.file.read(Config.ChunkSize):
+            yield chunk
+            if self.progress:
+                self.progress.update(self.task, advance=len(chunk))
 
     # Requried:
     # requests/models.py/PreparedRequest/prepare_body/:'''is_stream=all([hasattr(data,"__iter__"),notisinstance(data,(basestring,list,tuple,Mapping)),])''',
@@ -59,9 +79,13 @@ class FileProgressWrapper(io.BytesIO):
     def fileno(self):
         return self.file.fileno()
 
+    def __del__(self):
+        self.close()
+
     def close(self):
         self.file.close()
-        self.progress.stop()
+        if self.progress:
+            self.progress.stop()
 
 
 seq = '/'
@@ -103,7 +127,7 @@ class Config:
     Port = 8888
     RX_DirPath = "."
     NullDev = os.devnull
-    ChunkSize = 1 * (2**(2 * 10))  # 1 MiB
+    ChunkSize = 1 * (2**(10 * 2))  # 1 MiB
 
     @staticmethod
     def FILENAME():
@@ -133,12 +157,30 @@ class HeadersHandle:
         return headers
 
     @staticmethod
-    def get_Size(headers):
+    def get_ContentLength(headers):
         file_size = int(headers.get('Content-Length') or 0)
         return file_size
 
     @staticmethod
-    def set_Size(value=None, file=None, headers=None):
+    def set_ContentLength(value=None, headers=None):
+        if headers is None:
+            headers = {}
+
+        _header = {
+            "Content-Length": f"{int(value)}"
+        }
+
+        headers = headers.copy()
+        headers.update(_header)
+        return headers
+
+    @staticmethod
+    def get_FileSize(headers):
+        file_size = int(headers.get('File-Size') or 0)
+        return file_size
+
+    @staticmethod
+    def set_FileSize(value=None, file=None, headers=None):
         if headers is None:
             headers = {}
 
@@ -146,26 +188,55 @@ class HeadersHandle:
             value = os.path.getsize(file)
 
         _header = {
-            "Content-Length": f"1"
+            "File-Size": f"{int(value)}"
         }
 
         headers = headers.copy()
         headers.update(_header)
         return headers
 
+    @staticmethod
+    def get_Size(headers):
+        if not (size := HeadersHandle.get_ContentLength(headers)):
+            size = HeadersHandle.get_FileSize(headers)
+        return size
+
+    @staticmethod
+    def set_Size(value=None, headers=None):
+        headers = HeadersHandle.set_ContentLength(value, headers)
+        headers = HeadersHandle.set_FileSize(value, headers)
+        return headers
+
+
+class FileServerClientFlag(enum.IntFlag):
+    Client = enum.auto()
+    Server = enum.auto()
+    Transimit = enum.auto()
+    Receive = enum.auto()
+
+    ChunkAuto = enum.auto()
+    ChunkFalse = enum.auto()
+    ChunkTrue = enum.auto()
+
+    Fast = ChunkAuto
+    Stardard = ChunkFalse
+
 
 class FileServerClient:
     def __init__(self, ip=Config.IP, port=Config.Port,
+                 flag: FileServerClientFlag = FileServerClientFlag.Client | FileServerClientFlag.Receive | FileServerClientFlag.Fast,
                  cs_mode: Literal['server', 'client'] = 'client',
                  txrx_mode: Literal['transimit', 'receive'] = 'receive',
                  files: Iterable[str] = None,
                  rx_dir: str = ".",
+                 chunked: Literal['auto', 'false' 'true'] = '',
                  level: LEVEL = LEVEL.INFO
                  ):
 
         # Args
         self.ip = ip
         self.port = port
+        self.chucked = chunked
 
         try:
             self.server_mode = (cs_mode.lower()[0] == 's')
@@ -236,34 +307,39 @@ class FileServerClient:
             elif isinstance(path, list):
                 return jsonify({"Error": f"Multi files {path} exsit"}), 404
             else:
+                # f = open(path, 'rb')
+
                 progress = self.messager.new_progress()
-                # print
-                # f = FileProgressWrapper(path,progress=progress)
-                path=open(path,"rb")
-                return send_file(path, as_attachment=True, download_name=filename)
+                ff = FileProgressWrapper(path, progress=progress)
+                filesize = ff.total
+
+                headers = {}
+                headers = HeadersHandle.set_Filename(filename, headers)
+                headers = HeadersHandle.set_Size(filesize, headers)
+
+                return Response(ff.read_generator(), headers=headers)
 
         # --------------------------------------------------------- #
         # ----------------------- Server RX ----------------------- #
         # --------------------------------------------------------- #
+
         @self.app.route('/', methods=['POST'])
         def servers_rx_file():
             # Save the file
             filename = HeadersHandle.get_Filename(request.headers)
-            file_size = HeadersHandle.get_Size(request.headers)
+            filesize = HeadersHandle.get_Size(request.headers)
 
             self.messager.debug(request.headers)
             self.messager.debug(filename)
 
             rx_filepath = os.path.join(self.rx_dir, filename) if not Config.isDevnull(self.rx_dir) else self.rx_dir
 
-            file_size = int(request.content_length or 0)
-
             def content():
                 while chunk := request.stream.read(Config.ChunkSize):
                     yield chunk
 
             with open(rx_filepath, 'wb') as f:
-                for chunk in self.messager.message_progress(content(), total=file_size, description=""):
+                for chunk in self.messager.message_progress(content(), total=filesize, description=""):
                     f.write(chunk)
 
             # Update files_to_send
@@ -311,7 +387,7 @@ class FileServerClient:
                     filename = HeadersHandle.get_Filename(response.headers)
                 rx_filepath = os.path.join(self.rx_dir, filename) if not Config.isDevnull(self.rx_dir) else self.rx_dir
 
-                file_size = HeadersHandle.get_Size(response.headers)
+                file_size = HeadersHandle.get_ContentLength(response.headers)
                 content = response.iter_content(chunk_size=Config.ChunkSize)
                 with open(rx_filepath, 'wb') as f:
                     for chunk in self.messager.message_progress(content, total=file_size):
@@ -330,17 +406,28 @@ class FileServerClient:
             filename = os.path.basename(path)
             url = f"{self.host}"
 
+            filesize = os.path.getsize(path)
             headers = HeadersHandle.set_Filename(filename)
+            headers = HeadersHandle.set_Size(filesize, headers)
 
+            # FileProgressWrapper (Faster)
             progress = self.messager.new_progress()
             f = FileProgressWrapper(path, progress=progress)
-            response = requests.post(url, headers=headers, data=f, stream=True)
+
+            # Progress.wrap_file
+            # f = open(path, 'rb')
+            # if progress := self.messager.new_progress():
+            #     progress: Progress
+            #     f = progress.wrap_file(f, total=filesize)
+            #     progress.start()
+            response = requests.post(url, headers=headers, data=f.read_generator(), stream=True)
+            # progress.stop()
+            f.close()
 
             if response.status_code == 200:
                 print(f"Uploaded: {filename}")
             else:
                 print(f"Error Uploaded {filename}: {response.json().get('Error')}")
-            f.close()
 
     def run(self):
         if not Config.isDevnull(self.rx_dir):
@@ -395,6 +482,7 @@ def parse_args():
     parser.add_argument('<File>', nargs='*', type=str, help="Files or paths to transmit or receive (default: .)")
 
     parser.add_argument("-v", "--verbose", action='store_true', help="Verbose output")
+    parser.add_argument("-f", "--fast", action='store_true', help="Chunked transfer encoding")
 
     # 解析参数
     args = parser.parse_args()
@@ -436,5 +524,5 @@ if __name__ == "__main__":
     level = LEVEL.DEBUG if args.verbose else LEVEL.INFO
     print(level)
 
-    server = FileServerClient(args.ip, args.port, cs_mode, txrx_mode, args.paths, args.rx_dir, level)
+    server = FileServerClient(args.ip, args.port, cs_mode, txrx_mode, args.paths, args.rx_dir, level, args.chunked)
     server.run()
