@@ -2,122 +2,29 @@
 
 '''
 pyinstaller --clean --hidden-import flask --hidden-import requests --hidden-import rich --icon NONE --onefile ./FileServerClient.py
+pyinstaller --hidden-import flask --hidden-import requests --hidden-import rich --icon NONE --onefile ./FileServerClient.py
+pyinstaller  --icon NONE --onefile ./FileServerClient.py --name fsc  
 
 python FileServerClient.py -s [-t] [<ip>][:<port>] [<file>s...]
 python FileServerClient.py -s -r [<ip>][:<port>] [-p <rx-path>]
 python FileServerClient.py -c -t <ip>[:<port>] [<file>s...]
 python FileServerClient.py [-c] [-r] <ip>[:<port>] [<file>s...] [-p <rx-path>]
-
-client tx unchunk 1M
-
-uchk 1.8
-yuansheng open 1.1
-my wrap 3.4
-
-Resp 3.5
-
 '''
 
 
 import os
-import re
 import requests
 import argparse
 import time
 import enum
-from rich.progress import Progress, BarColumn, TaskProgressColumn, TimeElapsedColumn, TimeRemainingColumn, RenderableColumn, SpinnerColumn, TransferSpeedColumn, DownloadColumn
-from typing import Iterable, Any
+from typing import Iterable
 from flask import Flask, jsonify, send_file, request, Response
 from urllib.parse import unquote
 from pathlib import Path
 from libpycom.Messager import Messager, LEVEL
 from libpycom.message import message
 from libpycom.networks.HeaderHandle import HeadersHandle
-
-
-class FileProgressWrapper:
-    def __init__(self, file, mode: str = 'rb', progress: Progress = None, **kwargs):
-        self.file_path = file
-        self.mode = mode  # Requried: requests/utils.py/super_len:'''if "b" not in o.mode'''
-        self.file = open(file, mode, **kwargs)
-        self.progress = progress
-
-        if progress:
-            self.task = self.progress.add_task("", total=self.total)
-            progress.start()
-
-    @property
-    def total(self):
-        return os.path.getsize(self.file_path)
-
-    def read(self, *args, **kwargs):
-        chunk = self.file.read(Config.ChunkSize)
-        if self.progress:
-            self.progress.update(self.task, advance=len(chunk))
-        return chunk
-
-    def read_generator(self):
-        while chunk := self.file.read(Config.ChunkSize):
-            yield chunk
-            if self.progress:
-                self.progress.update(self.task, advance=len(chunk))
-
-    # Requried:
-    # requests/models.py/PreparedRequest/prepare_body/:'''is_stream=all([hasattr(data,"__iter__"),notisinstance(data,(basestring,list,tuple,Mapping)),])''',
-    # used for exam body whether is stream
-
-    def __iter__(self):
-        return self.file.__iter__()
-
-    def __next__(self):
-        return self.file.__next__()
-
-    # Requried:
-    # requests/utils.py/super_len:'''fileno = o.fileno()''', used for getting file size
-    def fileno(self):
-        return self.file.fileno()
-
-    def __del__(self):
-        self.close()
-
-    def close(self):
-        self.file.close()
-        if self.progress:
-            self.progress.stop()
-
-
-seq = '/'
-POST_FILE_KEY = 'file'
-
-
-def new_progress():
-    return Progress(
-        SpinnerColumn(),
-        "[progress.description]{task.description}",
-        DownloadColumn(),
-        BarColumn(),
-        TaskProgressColumn(),
-        TimeElapsedColumn(),
-        "/",
-        TimeRemainingColumn(),
-        RenderableColumn(),
-        TransferSpeedColumn(),
-    )
-
-
-def new_progress_track(
-    sequence: Iterable[Any],
-    total: int = None,
-    description: str = "",
-) -> Iterable[Any]:
-
-    progress = new_progress()
-
-    with progress:
-        task = progress.add_task(description, total=total)
-        for item in sequence:
-            yield item
-            progress.update(task, advance=len(item), total=total)
+from libpycom.networks.progress import new_progress, new_progress_track, FileProgressWrapper
 
 
 class Config:
@@ -125,6 +32,8 @@ class Config:
     Port = 8888
     RX_DirPath = "."
     NullDev = os.devnull
+    Seq = '/'
+
     ChunkSize = 1 * (2**(10 * 2))  # 1 MiB
 
     @staticmethod
@@ -175,7 +84,7 @@ class FileServerClient:
         self.host = f"http://{ip}:{port}"
 
         # Objects
-        self.messager = Messager(level, level, NewProgress=new_progress, NewProgressTrack=new_progress_track)
+        self.messager = Messager(level, level, fn_new_progress=new_progress, fn_new_progress_track=new_progress_track)
         self.app = Flask(self.__class__.__name__)
 
         # --------------------------------------------------------- #
@@ -195,7 +104,7 @@ class FileServerClient:
             if path_or_filename is not None:
                 path_or_filename = self.posixify_path(unquote(path_or_filename))
 
-                if seq in path_or_filename:  # is path
+                if Config.Seq in path_or_filename:  # is path
                     filename = os.path.basename(path_or_filename)
                     path = path_or_filename
                 else:  # is filename
@@ -221,7 +130,7 @@ class FileServerClient:
                     return send_file(path, as_attachment=True, download_name=filename)
                 else:
                     progress = self.messager.new_progress()
-                    f = FileProgressWrapper(path, progress=progress)
+                    f = FileProgressWrapper(path, progress=progress, chunk_size=Config.ChunkSize)
                     filesize = f.total
 
                     headers = {}
@@ -272,6 +181,8 @@ class FileServerClient:
             filename = os.path.basename(path)
 
             url = f"{self.host}/{path}"
+            self.messager.info(f"Download from: \t{url}")
+
             response = requests.get(url, stream=True)
 
             if response.status_code == 200:
@@ -282,6 +193,7 @@ class FileServerClient:
                         filename = Config.FILENAME()
 
                 rx_filepath = os.path.join(self.rx_dir, filename) if not Config.isDevnull(self.rx_dir) else self.rx_dir
+                self.messager.info(f"Download to: \t{rx_filepath}")
 
                 file_size = HeadersHandle.get_ContentLength(response.headers)
                 content = response.iter_content(chunk_size=Config.ChunkSize)
@@ -289,10 +201,10 @@ class FileServerClient:
                     for chunk in self.messager.message_progress(content, total=file_size):
                         f.write(chunk)
 
-                self.messager.info(f"Downloaded: {filename}")
+                self.messager.info(f"Downloaded: \t{filename} @ {rx_filepath}")
             else:
                 self.messager.info(
-                    f"Error downloading {filename}: {response.status_code} {response.json().get('Error')}")
+                    f"Error: \t{response.status_code} {response.json().get('Error')}")
 
     # --------------------------------------------------------- #
     # ----------------------- Client TX ----------------------- #
@@ -309,7 +221,7 @@ class FileServerClient:
 
             # FileProgressWrapper (Faster)
             progress = self.messager.new_progress()
-            f = FileProgressWrapper(path, progress=progress)
+            f = FileProgressWrapper(path, progress=progress, chunk_size=Config.ChunkSize)
 
             # Progress.wrap_file
             # f = open(path, 'rb')
@@ -331,6 +243,9 @@ class FileServerClient:
             else:
                 self.messager.info(f"Error Uploaded {filename}: {response.json().get('Error')}")
 
+    # --------------------------------------------------------- #
+    # -------------------------- Run -------------------------- #
+    # --------------------------------------------------------- #
     def run(self):
         if not Config.isDevnull(self.rx_dir):
             os.makedirs(self.rx_dir, exist_ok=True)
@@ -368,7 +283,7 @@ class FileServerClient:
         for path_or_filename in paths:
             path_or_filename = self.posixify_path(path_or_filename)
             if os.path.isdir(path_or_filename):
-                path_or_filename = path_or_filename.rstrip(seq)
+                path_or_filename = path_or_filename.rstrip(Config.Seq)
 
             basename = os.path.basename(path_or_filename)
             self.tx_files.setdefault(basename, [])
@@ -380,6 +295,10 @@ class FileServerClient:
     def posixify_path(path):
         return str(Path(path).as_posix())
 
+
+# --------------------------------------------------------- #
+# ------------------------ Parser ------------------------- #
+# --------------------------------------------------------- #
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Script to handle server/client to transmit/receive files.")
@@ -394,13 +313,8 @@ def parse_args():
     action_group.add_argument('-t', '--transmit', action='store_true', help="Enable transmit mode (default for server)")
     action_group.add_argument('-r', '--receive', action='store_true', help="Enable receive mode (default for client)")
 
-    parser.add_argument(
-        "-d",
-        "--rx_dir",
-        metavar="<Dir>",
-        type=str,
-        default=Config.RX_DirPath,
-        help="Path of directory to save received files")
+    parser.add_argument("-d", "--rx_dir", metavar="<Dir>", type=str, default=Config.RX_DirPath,
+                        help="Path of directory to save received files")
 
     # IP and port
     parser.add_argument(
@@ -413,14 +327,10 @@ def parse_args():
     parser.add_argument("-v", "--verbose", action='store_true', help="Verbose output")
 
     chunk_group = parser.add_mutually_exclusive_group(required=False)
-
-    chunk_group.add_argument("-u", "--unchunked", action='store_true', help="Unchunked transfer encoding")
-    chunk_group.add_argument("-e", "--chunked", action='store_true', help="Chunked transfer encoding")
-    chunk_group.add_argument(
-        "-a",
-        "--auto",
-        action='store_true',
-        help="The best way to determine transfer encoding (default: unchunked for client transmit; chunked for server transmit)")
+    chunk_group.add_argument("-n", "--unchunked", action='store_true', help="Unchunked transfer encoding")
+    chunk_group.add_argument("-y", "--chunked", action='store_true', help="Chunked transfer encoding")
+    chunk_group.add_argument("-a", "--auto", action='store_true',
+                             help="Automatical transfer encoding (default: unchunked for client transmit; chunked for server transmit)")
 
     # 解析参数
     args = parser.parse_args()
