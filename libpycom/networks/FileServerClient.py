@@ -3,7 +3,7 @@
 '''
 pyinstaller --clean --hidden-import flask --hidden-import requests --hidden-import rich --icon NONE --onefile ./FileServerClient.py
 pyinstaller --hidden-import flask --hidden-import requests --hidden-import rich --icon NONE --onefile ./FileServerClient.py
-pyinstaller  --icon NONE --onefile ./FileServerClient.py --name fsc  
+pyinstaller  --icon NONE --onefile ./FileServerClient.py --name fsc
 
 python FileServerClient.py -s [-t] [<ip>][:<port>] [<file>s...]
 python FileServerClient.py -s -r [<ip>][:<port>] [-p <rx-path>]
@@ -274,11 +274,11 @@ class FileServerClient:
             self.messager.info("Invalid server/client mode")
 
     def start_server(self):
-        self.messager.info(f"Server started at {self.host}")
+        self.messager.info(f"Server started: \t{self.host}")
 
         self.app.run(host=self.ip, port=self.port)
 
-        self.messager.info(f"Server ended at{self.host}")
+        self.messager.info(f"Server ended: \t{self.host}")
 
     def add_tx_files(self, paths):
         for path_or_filename in paths:
