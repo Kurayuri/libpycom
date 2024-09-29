@@ -1,35 +1,39 @@
 import os
 from rich.progress import Progress, BarColumn, TaskProgressColumn, TimeElapsedColumn, TimeRemainingColumn, RenderableColumn, SpinnerColumn, TransferSpeedColumn, DownloadColumn
 from typing import Iterable, Any
+from libpycom.progress.ProgressABC import ProgressABC
 
 
-def new_progress():
-    return Progress(
-        SpinnerColumn(),
-        "[progress.description]{task.description}",
-        DownloadColumn(),
-        BarColumn(),
-        TaskProgressColumn(),
-        TimeElapsedColumn(),
-        "/",
-        TimeRemainingColumn(),
-        TransferSpeedColumn(),
-    )
+class ProgressIO(ProgressABC):
+    @classmethod
+    def create(cls, *args, **kwargs) -> Progress:
+        return Progress(
+            SpinnerColumn(),
+            "[progress.description]{task.description}",
+            DownloadColumn(),
+            BarColumn(),
+            TaskProgressColumn(),
+            TimeElapsedColumn(),
+            "/",
+            TimeRemainingColumn(),
+            TransferSpeedColumn(),
+        )
 
+    @classmethod
+    def attach_task(cls, sequence: Iterable[Any],
+                    total: int | None = None,
+                    description: str = "",
+                    progress: Progress | None = None,
+                    ** kwargs) -> Iterable[Any]:
 
-def new_progress_track(
-    sequence: Iterable[Any],
-    total: int = None,
-    description: str = "",
-) -> Iterable[Any]:
-
-    progress = new_progress()
-
-    with progress:
         task = progress.add_task(description, total=total)
         for item in sequence:
             yield item
-            progress.update(task, advance=len(item), total=total)
+            if hasattr(item,"__len__"):
+                lg =  len(item)
+            else:
+                lg =1
+            progress.update(task, advance=lg, total=total)
 
 
 class FileProgressWrapper:

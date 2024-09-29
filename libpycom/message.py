@@ -1,6 +1,5 @@
 from libpycom.Const import LEVEL, STYLE
 from libpycom import Settings
-from libpycom import Messager
 
 
 def message(*args, level=LEVEL.INFO, style=STYLE.RESET, end: str = "\n", separator: str = " "):
@@ -10,7 +9,9 @@ def message(*args, level=LEVEL.INFO, style=STYLE.RESET, end: str = "\n", separat
 
 def message_progress(sequence, *args, level=LEVEL.INFO, **kwargs):
     if level >= Settings.MessageProgressLevel:
-        return Settings.messager.fn_new_progress_track(sequence, *args, **kwargs)
+        Settings.messager.new_progress(*args, level, **kwargs)
+        track = Settings.messager.fn_new_progress_track(sequence, *args, progress=Settings.messager._progress, **kwargs)
+        return track
     else:
         return sequence
 

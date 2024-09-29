@@ -1,37 +1,32 @@
 from rich.progress import Progress, BarColumn, TaskProgressColumn, TimeElapsedColumn, TimeRemainingColumn, SpinnerColumn, MofNCompleteColumn
 from typing import Any
 from collections.abc import Iterable
-import rich.progress
+from libpycom.progress.ProgressABC import ProgressABC
 
 
-def new_progress(*args, **kwargs) -> Progress:
-    return Progress(
-        SpinnerColumn(),
-        "[progress.description]{task.description}",
-        MofNCompleteColumn(),
-        BarColumn(),
-        TaskProgressColumn(),
-        TimeElapsedColumn(),
-        "/",
-        TimeRemainingColumn()
-    )
+class ProgressTask(ProgressABC):
+    @classmethod
+    def create(cls, *args, **kwargs) -> Progress:
+        return Progress(
+            SpinnerColumn(),
+            "[progress.description]{task.description}",
+            MofNCompleteColumn(),
+            BarColumn(),
+            TaskProgressColumn(),
+            TimeElapsedColumn(),
+            "/",
+            TimeRemainingColumn()
+        )
 
+    @classmethod
+    def attach_task(cls, sequence: Iterable[Any],
+                    total: int | None = None,
+                    description: str = "",
+                    progress: Progress | None = None,
+                    ** kwargs) -> Iterable[Any]:
 
-def new_progress_track(
-    sequence: Iterable[Any],
-    total: int | None = None,
-    description: str = "",
-) -> Iterable[Any]:
-
-    progress = new_progress()
-
-    if total is None:
-        if hasattr(sequence, '__len__'):
-            total = len(sequence)
-        else:
-            total = len([x for x in sequence])
-
-    with progress:
+        if total is None:
+            total = cls.measure_total(sequence)
         task = progress.add_task(description, total=total)
         for item in sequence:
             yield item
