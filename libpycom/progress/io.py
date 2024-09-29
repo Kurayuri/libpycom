@@ -13,7 +13,6 @@ def new_progress():
         TimeElapsedColumn(),
         "/",
         TimeRemainingColumn(),
-        RenderableColumn(),
         TransferSpeedColumn(),
     )
 

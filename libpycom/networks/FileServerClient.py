@@ -24,7 +24,7 @@ from pathlib import Path
 from libpycom.Messager import Messager, LEVEL
 from libpycom.message import message
 from libpycom.networks.HeaderHandle import HeadersHandle
-from libpycom.networks.progress import new_progress, new_progress_track, FileProgressWrapper
+from libpycom.progress.io import new_progress, new_progress_track, FileProgressWrapper
 
 
 class Config:
@@ -101,6 +101,7 @@ class FileServerClient:
                 path_or_filename = next(iter(self.tx_files))
 
             # Get path
+            filename = ""
             if path_or_filename is not None:
                 path_or_filename = self.posixify_path(unquote(path_or_filename))
 

@@ -11,6 +11,7 @@ class HeadersHandle:
         filename = filename[0] if filename else None
         return filename
 
+    @staticmethod
     def set_Filename(value, headers=None):
         if headers is None:
             headers = {}

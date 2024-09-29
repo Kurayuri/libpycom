@@ -7,3 +7,4 @@ from libpycom.SyntaxUtils import SyntaxUtils
 from libpycom.__Settings__ import __Settings__
 
 Settings = __Settings__()
+messager = Settings.messager

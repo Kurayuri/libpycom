@@ -1,5 +1,7 @@
+from enum import Enum
 
-class LEVEL:
+
+class LEVEL(Enum):
     DEBUG = 1
     INFO = 2
     WARNING = 3
@@ -10,7 +12,7 @@ class LEVEL:
 MESSAGE_LEVEL = LEVEL
 
 
-class STYLE:
+class STYLE(Enum):
     RED = "\033[31m"
     GREEN = "\033[32m"
     YELLOW = "\033[33m"

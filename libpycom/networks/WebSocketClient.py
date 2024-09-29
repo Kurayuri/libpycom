@@ -11,7 +11,7 @@ class WebSocketClient:
     def __init__(self, uri, **kwargs):
         self.uri = uri
         self.kwargs = kwargs
-        self.ws = None
+        self.ws: websocket.WebSocketApp
         self.message_queue = queue.Queue()
         self.lock = threading.Lock()
         self.connect()
