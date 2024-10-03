@@ -31,3 +31,4 @@ class ProgressTask(ProgressABC):
         for item in sequence:
             yield item
             progress.update(task, advance=1, total=total)
+        # progress.stop_task(task)
