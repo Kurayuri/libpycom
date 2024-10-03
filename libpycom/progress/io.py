@@ -1,7 +1,7 @@
 import os
 from rich.progress import Progress, BarColumn, TaskProgressColumn, TimeElapsedColumn, TimeRemainingColumn, RenderableColumn, SpinnerColumn, TransferSpeedColumn, DownloadColumn
 from typing import Iterable, Any
-from libpycom.progress.ProgressABC import ProgressABC
+from libpycom.progress.abc import ProgressABC
 
 
 class ProgressIO(ProgressABC):

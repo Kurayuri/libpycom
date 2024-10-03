@@ -1,7 +1,7 @@
 from rich.progress import Progress, BarColumn, TaskProgressColumn, TimeElapsedColumn, TimeRemainingColumn, SpinnerColumn, MofNCompleteColumn
 from typing import Any
 from collections.abc import Iterable
-from libpycom.progress.ProgressABC import ProgressABC
+from libpycom.progress.abc import ProgressABC
 
 
 class ProgressTask(ProgressABC):

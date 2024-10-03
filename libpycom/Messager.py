@@ -1,12 +1,12 @@
-from collections.abc import Iterable, Callable
-from typing import Any
-import libpycom
-from rich import progress
-from rich.progress import Progress
-from libpycom.Const import LEVEL, STYLE
-from libpycom.progress.task import ProgressTask
-from libpycom.progress.ProgressABC import remove
 import atexit
+from collections.abc import Callable, Iterable
+from typing import Any
+
+import libpycom
+from libpycom.Const import LEVEL, STYLE
+from libpycom.progress.abc import remove
+from libpycom.progress.task import ProgressTask
+from rich.progress import Progress
 
 
 class Messager:
@@ -94,17 +94,15 @@ class Messager:
     def critial(self, *args, style=STYLE.RESET, end: str = "\n", separator: str = " "):
         if LEVEL.CRITICAL >= self._message_level:
             print(f"{style}{separator.join(map(str, args))}{STYLE.RESET}", end=end)
-    
+
     def __del__(self):
         try:
             remove(self._progress)
-        except:
+        except BaseException:
             pass
 
 
-
 def cleanup():
-    # print("Clean")
     remove(libpycom.messager._progress)
 
 

@@ -21,3 +21,4 @@ class __Settings__:
     @MessageProgressLevel.setter
     def MessageProgressLevel(self, level) -> None:
         self.messager.message_progress_level = level
+
