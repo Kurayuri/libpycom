@@ -60,7 +60,7 @@ class Messager:
         if level >= self._message_level:
             print(f"{style}{separator.join(map(str, args))}{STYLE.RESET}", end=end)
 
-    def message_progress(self, sequence, *args, level=LEVEL.INFO, **kwargs) -> Iterable[Any]:
+    def message_progress(self, iterable, *args, level=LEVEL.INFO, **kwargs) -> Iterable[Any]:
         if level >= self._message_progress_level:
             prev_task_id = self._task_id
             _prev = prev_task_id
@@ -76,7 +76,7 @@ class Messager:
 
             self._task_status[task_id] = Task(_prev, 1)
 
-            for item in self.fn_new_progress_track(sequence, *args, progress=self._progress, ** kwargs):
+            for item in self.fn_new_progress_track(iterable, *args, progress=self._progress, ** kwargs):
                 yield item
 
             self._task_status[task_id] = self._task_status[task_id]._replace(status=0)
@@ -85,10 +85,10 @@ class Messager:
                 # Top Layer
                 self.remove_progress()
         else:
-            return sequence
+            return iterable
 
-    def message_enumprogress(self, sequence, *args, level=LEVEL.INFO, **kwargs):
-        return enumerate(self.message_progress(sequence, *args, level=level, **kwargs))
+    def message_enumprogress(self, iterable, *args, level=LEVEL.INFO, **kwargs):
+        return enumerate(self.message_progress(iterable, *args, level=level, **kwargs))
 
     def new_progress(self, *args, level=LEVEL.INFO, **kwargs):
         _progress = self.fn_new_progress(*args, **kwargs)

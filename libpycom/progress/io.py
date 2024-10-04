@@ -20,14 +20,14 @@ class ProgressIO(ProgressABC):
         )
 
     @classmethod
-    def attach_task(cls, sequence: Iterable[Any],
+    def attach_task(cls, iterable: Iterable[Any],
                     total: int | None = None,
                     description: str = "",
                     progress: Progress | None = None,
                     ** kwargs) -> Iterable[Any]:
 
         task = progress.add_task(description, total=total)
-        for item in sequence:
+        for item in iterable:
             yield item
             if hasattr(item,"__len__"):
                 lg =  len(item)

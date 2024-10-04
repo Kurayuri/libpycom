@@ -1,4 +1,8 @@
 class TupleClass:
+    def __init__(self, **kwargs) -> None:
+        for k, v in kwargs:
+            setattr(self, k, v)
+
     def __iter__(self):
         return iter(self.__dict__.values())
 

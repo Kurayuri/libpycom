@@ -19,16 +19,18 @@ class ProgressTask(ProgressABC):
         )
 
     @classmethod
-    def attach_task(cls, sequence: Iterable[Any],
+    def attach_task(cls, iterable: Iterable[Any],
                     total: int | None = None,
                     description: str = "",
                     progress: Progress | None = None,
                     ** kwargs) -> Iterable[Any]:
 
         if total is None:
-            total = cls.measure_total(sequence)
+            total = cls.measure_total(iterable)
+        if total == 0 :
+            total = None
         task = progress.add_task(description, total=total)
-        for item in sequence:
+        for item in iterable:
             yield item
             progress.update(task, advance=1, total=total)
         # progress.stop_task(task)

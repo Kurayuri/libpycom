@@ -7,17 +7,17 @@ def message(*args, level=LEVEL.INFO, style=STYLE.RESET, end: str = "\n", separat
         print(f"{style}{separator.join(map(str, args))}{STYLE.RESET}", end=end)
 
 
-def message_progress(sequence, *args, level=LEVEL.INFO, **kwargs):
+def message_progress(iterable, *args, level=LEVEL.INFO, **kwargs):
     if level >= Settings.MessageProgressLevel:
         Settings.messager.new_progress(*args, level, **kwargs)
-        track = Settings.messager.fn_new_progress_track(sequence, *args, progress=Settings.messager._progress, **kwargs)
+        track = Settings.messager.fn_new_progress_track(iterable, *args, progress=Settings.messager._progress, **kwargs)
         return track
     else:
-        return sequence
+        return iterable
 
 
-def message_enumprogress(sequence, *args, level=LEVEL.INFO, **kwargs):
-    return enumerate(message_progress(sequence, *args, level=level, **kwargs))
+def message_enumprogress(iterable, *args, level=LEVEL.INFO, **kwargs):
+    return enumerate(message_progress(iterable, *args, level=level, **kwargs))
 
 
 def debug(*args, style=STYLE.RESET, end: str = "\n", separator: str = " "):

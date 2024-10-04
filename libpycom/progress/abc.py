@@ -14,7 +14,7 @@ class ProgressABC(ABC):
 
     @classmethod
     @abstractmethod
-    def attach_task(cls, sequence: Iterable[Any],
+    def attach_task(cls, iterable: Iterable[Any],
                     total: int | None = None,
                     description: str = "",
                     progress: Progress | None = None,
@@ -29,7 +29,7 @@ class ProgressABC(ABC):
         return cls._progress
 
     @classmethod
-    def new_track(cls, sequence: Iterable[Any],
+    def new_track(cls, iterable: Iterable[Any],
                   total: int | None = None,
                   description: str = "",
                   progress: Progress | None = None,
@@ -48,7 +48,7 @@ class ProgressABC(ABC):
             # # # # # #
             progress = _progress
 
-        for item in cls.attach_task(sequence, total, description, progress, ** kwargs):
+        for item in cls.attach_task(iterable, total, description, progress, ** kwargs):
             yield item
 
         if attached_progress is None:
@@ -64,15 +64,14 @@ class ProgressABC(ABC):
         cls._progress = None
 
     @classmethod
-    def measure_total(cls, sequence: Iterable[Any]) -> int:
-        if hasattr(sequence, '__len__'):
-            total = len(sequence)
+    def measure_total(cls, iterable: Iterable[Any]) -> int:
+        if hasattr(iterable, '__len__'):
+            total = len(iterable)
         else:
             total = 0
-            for _ in sequence:
+            for _ in iterable:
                 total += 1
         return total
-
 
 
 def remove(progress: Progress) -> bool:
