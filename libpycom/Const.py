@@ -21,3 +21,6 @@ class STYLE:
     BOLD = "\033[1m"
     UNDERLINE = "\033[4m"
     RESET = "\033[0m"
+
+
+MESSAGE_STYLE = STYLE

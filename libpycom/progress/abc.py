@@ -78,11 +78,13 @@ class ProgressABC(ABC):
         return total
 
 
-def remove(progress: Progress) -> bool:
-    if hasattr(progress, 'stop'):
-        progress.stop()
-        if hasattr(progress, '_cls_ref'):
-            getattr(progress, '_cls_ref').remove()
-            return True
+class ProgressUtils:
+    @staticmethod
+    def remove(progress: Progress) -> bool:
+        if hasattr(progress, 'stop'):
+            progress.stop()
+            if hasattr(progress, '_cls_ref'):
+                getattr(progress, '_cls_ref').remove()
+                return True
 
-    return False
+        return False

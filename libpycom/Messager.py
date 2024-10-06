@@ -4,11 +4,10 @@ from typing import Any
 
 from rich.progress import Progress
 
-import libpycom
+from libpycom.progress import ProgressUtils, ProgressTask
 from libpycom.Const import LEVEL, STYLE
-from libpycom.progress.task import ProgressTask
 
-__all__ = ['Messager']
+__all__ = ['Messager', 'LEVEL', 'STYLE']
 
 
 _Task = namedtuple('Task', ['parent', 'status'])
@@ -61,7 +60,8 @@ class Messager:
 
     # Recommeneded
 
-    def message(self, *args, level: LEVEL = LEVEL.INFO, style: STYLE = STYLE.RESET, end: str = "\n", separator: str = " ") -> None:
+    def message(self, *args, level: LEVEL = LEVEL.INFO, style: STYLE = STYLE.RESET,
+                end: str = "\n", separator: str = " ") -> None:
         if level >= self._message_level:
             print(f"{style}{separator.join(map(str, args))}{STYLE.RESET}", end=end)
 
@@ -107,7 +107,7 @@ class Messager:
             return None
 
     def remove_progress(self):
-        libpycom.progress.abc.remove(self._progress)
+        ProgressUtils.remove(self._progress)
         self._progress = None
 
     # Others
