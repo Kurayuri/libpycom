@@ -1,10 +1,14 @@
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
+from types import EllipsisType
 from typing import Any
+
 from rich.progress import Progress
 
 
 class ProgressABC(ABC):
+    TOTAL_AUTO = ...
+    TOTAL_INF = -1
     _progress = None
 
     @classmethod
@@ -15,7 +19,7 @@ class ProgressABC(ABC):
     @classmethod
     @abstractmethod
     def attach_task(cls, iterable: Iterable[Any],
-                    total: int | None = None,
+                    total: int | EllipsisType | None = ...,
                     description: str = "",
                     progress: Progress | None = None,
                     ** kwargs) -> Iterable[Any]:
@@ -30,7 +34,7 @@ class ProgressABC(ABC):
 
     @classmethod
     def new_track(cls, iterable: Iterable[Any],
-                  total: int | None = None,
+                  total: int | EllipsisType | None = ...,
                   description: str = "",
                   progress: Progress | None = None,
                   ** kwargs) -> Iterable[Any]:

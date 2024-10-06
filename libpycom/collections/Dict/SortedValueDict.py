@@ -1,40 +1,33 @@
-from collections.abc import MutableMapping
 from sortedcontainers import SortedList
 
+from libpycom.collections.Dict.DictWrapper import DictWrapper
 
-class SortedValueDict(MutableMapping):
+
+class SortedValueDict(DictWrapper):
     def __init__(self, *args, **kwargs):
-        self._dict = dict(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._sorted_keys = SortedList(self._dict.keys(), key=self._dict.get)
 
-    def __getitem__(self, key):
-        return self._dict[key]
-
     def __setitem__(self, key, value):
+        super().__setitem__(key, value)
+
         if key in self._dict:
             self._sorted_keys.remove(key)
-        self._dict[key] = value
         self._sorted_keys.add(key)
 
     def __delitem__(self, key):
-        del self._dict[key]
+        super().__delitem__(key)
         self._sorted_keys.remove(key)
 
     def __iter__(self):
         return iter(self._sorted_keys)
-
-    def __len__(self):
-        return len(self._dict)
-
-    def __repr__(self):
-        return '{' + ', '.join(f'{k}: {self._dict[k]}' for k in self) + '}'
 
     def update(self, *args, **kwargs):
         for key, value in dict(*args, **kwargs).items():
             self[key] = value
 
     def clear(self):
-        self._dict.clear()
+        super().clear()
         self._sorted_keys.clear()
 
     def keys(self):
@@ -74,4 +67,3 @@ class SortedValueDict(MutableMapping):
             if key in self._sorted_keys:
                 self._sorted_keys.remove(key)
             self._sorted_keys.add(key)
-

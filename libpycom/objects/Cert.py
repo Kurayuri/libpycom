@@ -1,4 +1,4 @@
-from libpycom.containers.Class.TupleClass import TupleClass
+from libpycom.collections.Class.TupleClass import TupleClass
 
 
 class Cert(TupleClass):

@@ -1,3 +1,4 @@
+from pathlib import Path
 from libpycom.aliases import *
 from typing import cast, NewType, Union, TypeAlias
 
@@ -69,6 +70,13 @@ def save_texts(content: bytes, f: PathLike) -> None:
         f = cast(str | os.PathLike, f)
         with open(f, "w") as writable:
             writable.write(content)
+
+
+import subprocess
+
+def count_lines(f: PathLike):
+    result = subprocess.run(['wc', '-l', f], stdout=subprocess.PIPE)
+    return int(result.stdout.split()[0])
 
 
 if __name__ == "__main__":

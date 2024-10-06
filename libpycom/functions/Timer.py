@@ -1,16 +1,4 @@
 import time
-from contextlib import contextmanager
-
-
-# @contextmanager
-# def timer(text=None):
-#     start_time = time.time()
-#     try:
-#         yield
-#     finally:
-#         end_time = time.time()
-#         text = "Elapsed time: " if text is None else text
-#         print(f"{text} {end_time - start_time:.2f}s")
 
 class Timer:
     def __init__(self, text="Elapsed time:"):

@@ -22,11 +22,11 @@ class QuickAttrClass:
         sub_attr = {}
         for key in keys:
             if len(attributess) == 0:
-                sub_attr[key] = separator.join(prefix+[key]) if pattern is None \
+                sub_attr[key] = separator.join(prefix + [key]) if pattern is None \
                     else pattern.format(*prefix, key)
             else:
                 sub_attr[key] = self._create(
-                    attributess, prefix+[key], separator, pattern)
+                    attributess, prefix + [key], separator, pattern)
         return type(f'Gen_{prefix}', (object,), sub_attr)
 
     def update(self, other):

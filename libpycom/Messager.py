@@ -1,16 +1,21 @@
+from collections import namedtuple
 from collections.abc import Callable, Iterable
 from typing import Any
+
+from rich.progress import Progress
 
 import libpycom
 from libpycom.Const import LEVEL, STYLE
 from libpycom.progress.task import ProgressTask
-from rich.progress import Progress
-from collections import namedtuple
 
-Task = namedtuple('Task', ['parent', 'status'])
+__all__ = ['Messager']
+
+
+_Task = namedtuple('Task', ['parent', 'status'])
 
 
 class Messager:
+
     def __init__(self, message_level: LEVEL = LEVEL.INFO, message_progress_level: LEVEL = LEVEL.INFO,
                  fn_new_progress: Callable[[Any], Progress] = ProgressTask.new,
                  fn_new_progress_track: Callable[[Any], Iterable[Any]] = ProgressTask.new_track) -> None:
@@ -20,12 +25,12 @@ class Messager:
         self.fn_new_progress_track = fn_new_progress_track
         self._progress = None
 
-        self._task_status = [Task(0, 0)]
+        self._task_status = [_Task(0, 0)]
         self._task_id = 0
 
     def _new_task(self):
         self._task_id += 1
-        self._task_status.append(Task(0, 0))  # Parent, State: 0-Start,1-Stop
+        self._task_status.append(_Task(0, 0))  # Parent, State: 0-Start,1-Stop
         return self._task_id
 
     @property
@@ -74,7 +79,7 @@ class Messager:
                 # Top Layer
                 self.new_progress(*args, level, **kwargs)
 
-            self._task_status[task_id] = Task(_prev, 1)
+            self._task_status[task_id] = _Task(_prev, 1)
 
             for item in self.fn_new_progress_track(iterable, *args, progress=self._progress, ** kwargs):
                 yield item

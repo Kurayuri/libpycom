@@ -1,8 +1,8 @@
+from libpycom.collections.Dict.DictWrapper import DictWrapper
 from libpycom.SyntaxUtils import SyntaxUtils
-from libpycom.containers.Dict.DictWrapper import DictWrapper
 
 
-class NestedDict(DictWrapper):
+class AccessibleDict(DictWrapper):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -26,7 +26,7 @@ class NestedDict(DictWrapper):
             _dict = _dict[key]
         return _dict.setdefault(keys[-1], value)
 
-    def get(self, keys):
+    def get(self, keys, default=None):
         if not isinstance(keys, tuple):
             keys = (keys,)
         _dict = self._dict
@@ -34,6 +34,7 @@ class NestedDict(DictWrapper):
         for key in keys:
             _dict = _dict.get(key)
             if _dict is None:
+                _dict = default
                 break
         return _dict
 

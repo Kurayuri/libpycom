@@ -12,19 +12,21 @@ python FileServerClient.py [-c] [-r] <ip>[:<port>] [<file>s...] [-p <rx-path>]
 '''
 
 
-import os
-import requests
 import argparse
-import time
 import enum
-from typing import Iterable
-from flask import Flask, jsonify, send_file, request, Response
-from urllib.parse import unquote
+import os
+import time
 from pathlib import Path
-from libpycom.Messager import Messager, LEVEL
+from typing import Iterable
+from urllib.parse import unquote
+
+import requests
+from flask import Flask, Response, jsonify, request, send_file
+
 from libpycom.message import message
+from libpycom.Messager import LEVEL, Messager
 from libpycom.networks.HeaderHandle import HeadersHandle
-from libpycom.progress.io import new_progress, new_progress_track, FileProgressWrapper
+from libpycom.progress.io import FileProgressWrapper, new_progress, new_progress_track
 
 
 class Config:

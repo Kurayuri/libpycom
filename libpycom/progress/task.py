@@ -1,6 +1,10 @@
-from rich.progress import Progress, BarColumn, TaskProgressColumn, TimeElapsedColumn, TimeRemainingColumn, SpinnerColumn, MofNCompleteColumn
-from typing import Any
 from collections.abc import Iterable
+from types import EllipsisType
+from typing import Any
+
+from rich.progress import (BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TaskProgressColumn,
+                           TimeElapsedColumn, TimeRemainingColumn)
+
 from libpycom.progress.abc import ProgressABC
 
 
@@ -20,15 +24,15 @@ class ProgressTask(ProgressABC):
 
     @classmethod
     def attach_task(cls, iterable: Iterable[Any],
-                    total: int | None = None,
+                    total: int | EllipsisType | None = ...,
                     description: str = "",
                     progress: Progress | None = None,
                     ** kwargs) -> Iterable[Any]:
 
-        if total is None:
+        if total is ...:
+            print("?????????")
             total = cls.measure_total(iterable)
-        if total == 0 :
-            total = None
+
         task = progress.add_task(description, total=total)
         for item in iterable:
             yield item

@@ -1,12 +1,12 @@
-import os
 import builtins
+import os
+from pathlib import Path
+
 import yaml
 from pydantic import BaseModel, model_validator
-from pathlib import Path
-from libpycom.containers.Dict.DotDict import DotDict
-from libpycom.SyntaxUtils import SyntaxUtils
-import pkg_resources
 
+from libpycom.collections.Dict.DotDict import DotDict
+from libpycom.SyntaxUtils import SyntaxUtils
 
 CONFIG_GLOBAL_VARS: DotDict
 

@@ -1,7 +1,11 @@
 import os
-from rich.progress import Progress, BarColumn, TaskProgressColumn, TimeElapsedColumn, TimeRemainingColumn, RenderableColumn, SpinnerColumn, TransferSpeedColumn, DownloadColumn
-from typing import Iterable, Any
-from libpycom.progress.abc import ProgressABC
+from types import EllipsisType
+from typing import Any, Iterable
+
+from rich.progress import (BarColumn, DownloadColumn, Progress, RenderableColumn, SpinnerColumn, TaskProgressColumn,
+                           TimeElapsedColumn, TimeRemainingColumn, TransferSpeedColumn)
+
+from libpycom.progress.abc import ProgressABC, remove
 
 
 class ProgressIO(ProgressABC):
@@ -21,7 +25,7 @@ class ProgressIO(ProgressABC):
 
     @classmethod
     def attach_task(cls, iterable: Iterable[Any],
-                    total: int | None = None,
+                    total: int | EllipsisType | None = ...,
                     description: str = "",
                     progress: Progress | None = None,
                     ** kwargs) -> Iterable[Any]:
@@ -29,20 +33,26 @@ class ProgressIO(ProgressABC):
         task = progress.add_task(description, total=total)
         for item in iterable:
             yield item
-            if hasattr(item,"__len__"):
-                lg =  len(item)
+            if hasattr(item, "__len__"):
+                lg = len(item)
             else:
-                lg =1
+                lg = 1
             progress.update(task, advance=lg, total=total)
 
 
 class FileProgressWrapper:
-    def __init__(self, file, mode: str = 'rb', progress: Progress = None, chunk_size=1048576, **kwargs):
+    def __init__(self, file, mode: str = 'rb', progress: Progress | EllipsisType | None = None, chunk_size=1048576, **kwargs):
         self.file_path = file
         self.mode = mode  # Requried: requests/utils.py/super_len:'''if "b" not in o.mode'''
         self.file = open(file, mode, **kwargs)
-        self.progress = progress
         self.chunk_size = chunk_size
+
+        self._own_progress = None
+        if progress is ...:
+            progress = ProgressIO.new()
+            self._own_progress = progress
+
+        self.progress = progress
 
         if progress:
             self.task = self.progress.add_task("", total=self.total)
@@ -86,3 +96,12 @@ class FileProgressWrapper:
         self.file.close()
         if self.progress:
             self.progress.stop()
+        if self._own_progress:
+            remove(self._own_progress)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+        return False
