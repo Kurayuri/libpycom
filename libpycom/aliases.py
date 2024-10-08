@@ -6,3 +6,5 @@ import pathlib
 PathLike: TypeAlias = IO | str | os.PathLike | pathlib.Path
 
 Array: TypeAlias = np.ndarray
+
+ListTuple: TypeAlias = list | tuple

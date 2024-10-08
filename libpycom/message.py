@@ -1,45 +1,13 @@
-from libpycom.Const import LEVEL, STYLE
+from doctest import debug
+from libpycom.Messager import LEVEL, STYLE
 from libpycom import Settings
 
+message = Settings.messager.message
+message_progress = Settings.messager.message_progress
+message_enumprogress = Settings.messager.message_enumprogress
 
-def message(*args, level=LEVEL.INFO, style=STYLE.RESET, end: str = "\n", separator: str = " "):
-    if level >= Settings.MessageLevel:
-        print(f"{style}{separator.join(map(str, args))}{STYLE.RESET}", end=end)
-
-
-def message_progress(iterable, *args, level=LEVEL.INFO, **kwargs):
-    if level >= Settings.MessageProgressLevel:
-        Settings.messager.new_progress(*args, level, **kwargs)
-        track = Settings.messager.fn_new_progress_track(iterable, *args, progress=Settings.messager._progress, **kwargs)
-        return track
-    else:
-        return iterable
-
-
-def message_enumprogress(iterable, *args, level=LEVEL.INFO, **kwargs):
-    return enumerate(message_progress(iterable, *args, level=level, **kwargs))
-
-
-def debug(*args, style=STYLE.RESET, end: str = "\n", separator: str = " "):
-    if LEVEL.DEBUG >= Settings.MessageLevel:
-        print(f"{style}{separator.join(map(str, args))}{STYLE.RESET}", end=end)
-
-
-def info(*args, style=STYLE.RESET, end: str = "\n", separator: str = " "):
-    if LEVEL.INFO >= Settings.MessageLevel:
-        print(f"{style}{separator.join(map(str, args))}{STYLE.RESET}", end=end)
-
-
-def warning(*args, style=STYLE.RESET, end: str = "\n", separator: str = " "):
-    if LEVEL.WARNING >= Settings.MessageLevel:
-        print(f"{style}{separator.join(map(str, args))}{STYLE.RESET}", end=end)
-
-
-def error(*args, style=STYLE.RESET, end: str = "\n", separator: str = " "):
-    if LEVEL.ERROR >= Settings.MessageLevel:
-        print(f"{style}{separator.join(map(str, args))}{STYLE.RESET}", end=end)
-
-
-def critial(*args, style=STYLE.RESET, end: str = "\n", separator: str = " "):
-    if LEVEL.CRITICAL >= Settings.MessageLevel:
-        print(f"{style}{separator.join(map(str, args))}{STYLE.RESET}", end=end)
+debug = Settings.messager.debug
+info = Settings.messager.info
+warning = Settings.messager.warning
+error = Settings.messager.error
+critial = Settings.messager.critial

@@ -5,7 +5,6 @@ from typing import Any
 from rich.progress import Progress
 
 from libpycom.progress import ProgressUtils, ProgressTask
-from libpycom.Const import LEVEL, STYLE
 
 __all__ = ['Messager', 'LEVEL', 'STYLE']
 
@@ -14,6 +13,24 @@ _Task = namedtuple('Task', ['parent', 'status'])
 
 
 class Messager:
+    class LEVEL:
+        DEBUG = 1
+        INFO = 2
+        WARNING = 3
+        ERROR = 4
+        CRITICAL = 5
+
+    class STYLE:
+        RED = "\033[31m"
+        GREEN = "\033[32m"
+        YELLOW = "\033[33m"
+        BLUE = "\033[34m"
+        MAGENTA = "\033[35m"
+        CYAN = "\033[36m"
+        WHITE = "\033[37m"
+        BOLD = "\033[1m"
+        UNDERLINE = "\033[4m"
+        RESET = "\033[0m"
 
     def __init__(self, message_level: LEVEL = LEVEL.INFO, message_progress_level: LEVEL = LEVEL.INFO,
                  fn_new_progress: Callable[[Any], Progress] = ProgressTask.new,
@@ -131,6 +148,11 @@ class Messager:
         if LEVEL.CRITICAL >= self._message_level:
             print(f"{style}{separator.join(map(str, args))}{STYLE.RESET}", end=end)
 
+
+LEVEL = Messager.LEVEL
+STYLE = Messager.STYLE
+
+# Abnormal exit
 #     def __del__(self):
 #         try:
 #             remove(self._progress)
