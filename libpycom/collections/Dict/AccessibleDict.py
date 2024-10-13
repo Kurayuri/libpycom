@@ -1,5 +1,5 @@
 from libpycom.collections.Dict.DictWrapper import DictWrapper
-from libpycom.SyntaxUtils import SyntaxUtils
+from libpycom.SyntaxUtils import DictUtils
 
 
 class AccessibleDict(DictWrapper):
@@ -54,4 +54,4 @@ class AccessibleDict(DictWrapper):
         self.set(keys, value)
 
     def encode(self, *args, **kwargs):
-        return SyntaxUtils.Dict.encode(self._dict, *args, **kwargs)
+        return DictUtils.encode(self._dict, *args, **kwargs)

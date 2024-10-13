@@ -30,7 +30,6 @@ class ProgressTask(ProgressABC):
                     ** kwargs) -> Iterable[Any]:
 
         if total is ...:
-            print("?????????")
             total = cls.measure_total(iterable)
 
         task = progress.add_task(description, total=total)

@@ -9,7 +9,6 @@ from rich.progress import Progress
 class ProgressABC(ABC):
     TOTAL_AUTO = ...
     TOTAL_INF = -1
-    _progress = None
 
     @classmethod
     @abstractmethod
@@ -27,10 +26,9 @@ class ProgressABC(ABC):
 
     @classmethod
     def new(cls, *args, **kwargs) -> Progress:
-        if cls._progress is None:
-            cls._progress = cls.create(*args, **kwargs)
-        setattr(cls._progress, '_cls_ref', cls)
-        return cls._progress
+        if ProgressUtils._progress is None:
+            ProgressUtils._progress = cls.create(*args, **kwargs)
+        return ProgressUtils._progress
 
     @classmethod
     def new_track(cls, iterable: Iterable[Any],
@@ -42,12 +40,12 @@ class ProgressABC(ABC):
         attached_progress = progress
 
         if progress is None:
-            cls_progress = cls._progress
+            global_progress = ProgressUtils._progress
 
             _progress = cls.new()
 
             # Top Layer
-            if _progress is not cls_progress:
+            if _progress is not global_progress:
                 _progress.start()
             # # # # # #
             progress = _progress
@@ -57,15 +55,13 @@ class ProgressABC(ABC):
 
         if attached_progress is None:
             # Top Layer
-            if _progress is not cls_progress:
+            if _progress is not global_progress:
                 cls.remove()
             # # # # # #
 
     @classmethod
     def remove(cls):
-        if cls._progress:
-            cls._progress.stop()
-        cls._progress = None
+        ProgressUtils.remove()
 
     @classmethod
     def measure_total(cls, iterable: Iterable[Any]) -> int:
@@ -79,12 +75,11 @@ class ProgressABC(ABC):
 
 
 class ProgressUtils:
-    @staticmethod
-    def remove(progress: Progress) -> bool:
+    _progress = None
+
+    @classmethod
+    def remove(cls, progress: Progress | EllipsisType = ...):
+        if progress is ...:
+            progress = cls._progress
         if hasattr(progress, 'stop'):
             progress.stop()
-            if hasattr(progress, '_cls_ref'):
-                getattr(progress, '_cls_ref').remove()
-                return True
-
-        return False

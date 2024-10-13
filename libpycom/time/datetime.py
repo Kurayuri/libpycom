@@ -10,7 +10,13 @@ class DatetimeUtils:
     def convertFromTs(ts, basetime, _interval: timedelta | None = None, **kwargs):
         if _interval is None:
             _interval = timedelta(**kwargs)
-        return basetime + _interval * ts
+        return basetime + ts * _interval
+
+    @staticmethod
+    def convertToTs(_time, basetime, _interval: timedelta | None = None, **kwargs):
+        if _interval is None:
+            _interval = timedelta(**kwargs)
+        return (_time - basetime) // _interval
 
     @staticmethod
     def lookup(_time, _dict, _interval: timedelta | EllipsisType = ..., **kwargs):

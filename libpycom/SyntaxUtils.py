@@ -7,6 +7,10 @@ from typing import Any, Callable, Iterable
 
 from libpycom.aliases import ListTuple
 
+__all__ = [
+    'ClassUtils', 'DictUtils', 'StrUtils', 'ListTupleUtils', 'IterableUtils'
+]
+
 
 class ClassUtils:
     @staticmethod
@@ -67,6 +71,13 @@ class DictUtils:
     @staticmethod
     def map(_dict: MutableMapping, _funcs: Iterable[Callable], _types: Iterable[type],
             _filters: Iterable[Callable | EllipsisType | None] | None = None, strict: bool = False):
+        '''
+        _filter = {
+            Callable: call to check, true so map
+            EllipsisType:  try to map all matched type, if exception, ignore
+            None: map all matched type
+        }
+        '''
         _func_dict = {}
         _filter_dict = {}
 
@@ -115,6 +126,66 @@ class DictUtils:
         return _map(_dict)
 
     @staticmethod
+    def reshape(_dict: MutableMapping, shape: tuple[int]):
+        _shape_map = []
+
+        for id, level in enumerate(shape):
+            _shape_map += [id] * level
+
+        def shouldCompress(level):
+            if level < len(_shape_map):
+                return _shape_map[level - 1] == _shape_map[level]
+            return False
+
+        ans = {}
+
+        def _reshape(d, curr_level):
+            if curr_level > len(_shape_map):  # No more levels to compress
+                return d
+
+            _ans = {}
+            for k, v in d.items():
+                if isinstance(v, dict):
+                    v = _reshape(v, curr_level + 1)
+
+                    if shouldCompress(curr_level):  # If current level should be compressed
+                        for _k, _v in v.items():
+                            if not isinstance(_k, tuple):
+                                _k = (_k,)
+
+                            new_k = (k,) + _k
+                            _ans[new_k] = _v
+                        continue
+                _ans[k] = v
+            return _ans
+
+        ans = _reshape(_dict, 1)
+        return ans
+
+    @staticmethod
+    def compare(dict1, dict2, path=""):
+        differences = []
+
+        # 检查 dict1 中的键
+        for key in dict1:
+            if key not in dict2:
+                differences.append(f"{path}/{key} : Only in dict1")
+            else:
+                # 如果值也是字典，则递归比较
+                if isinstance(dict1[key], dict) and isinstance(dict2[key], dict):
+                    differences.extend(DictUtils.compare(dict1[key], dict2[key], path + "/" + str(key)))
+                # 否则比较值
+                elif dict1[key] != dict2[key]:
+                    differences.append(f"{path}/{key} : dict1 = {dict1[key]}, dict2 = {dict2[key]}")
+
+        # 检查 dict2 中的键
+        for key in dict2:
+            if key not in dict1:
+                differences.append(f"{path}/{key} : Only in dict2")
+
+        return differences
+
+    @staticmethod
     def itemsAll(_dict: MutableMapping):
         def _itemsAll(_obj, parent_key=""):
             for k, v in _obj.items():
@@ -128,13 +199,33 @@ class DictUtils:
         return _itemsAll(_dict)
 
     @staticmethod
-    def getFirst(_dict: MutableMapping) -> tuple[Any, Any]:
+    def getFirstItem(_dict: MutableMapping) -> tuple[Any, Any]:
         for k, v in _dict.items():
             if isinstance(v, MutableMapping):
-                return DictUtils.getFirst(v)
+                return DictUtils.getFirstItem(v)
             else:
                 return k, v
         return None, None
+
+    @staticmethod
+    def getFirstValue(_dict: MutableMapping) -> Any:
+        for k, v in _dict.items():
+            if isinstance(v, MutableMapping):
+                return DictUtils.getFirstValue(v)
+            else:
+                return v
+        return None
+
+    @staticmethod
+    def getFirstKey(_dict: MutableMapping) -> Any:
+        for k, v in _dict.items():
+            if isinstance(v, MutableMapping):
+                return DictUtils.getFirstKey(v)
+            else:
+                return k
+        return None
+
+    getFirst = getFirstKey
 
 
 class StrUtils:

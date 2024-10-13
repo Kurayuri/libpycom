@@ -5,7 +5,7 @@ from typing import Any, Iterable
 from rich.progress import (BarColumn, DownloadColumn, Progress, RenderableColumn, SpinnerColumn, TaskProgressColumn,
                            TimeElapsedColumn, TimeRemainingColumn, TransferSpeedColumn)
 
-from libpycom.progress.abc import ProgressABC, remove
+from libpycom.progress.abc import ProgressABC, ProgressUtils
 
 
 class ProgressIO(ProgressABC):
@@ -34,14 +34,15 @@ class ProgressIO(ProgressABC):
         for item in iterable:
             yield item
             if hasattr(item, "__len__"):
-                lg = len(item)
+                size = len(item)
             else:
-                lg = 1
-            progress.update(task, advance=lg, total=total)
+                size = 1
+            progress.update(task, advance=size, total=total)
 
 
 class FileProgressWrapper:
-    def __init__(self, file, mode: str = 'rb', progress: Progress | EllipsisType | None = None, chunk_size=1048576, **kwargs):
+    def __init__(self, file, mode: str = 'rb', progress: Progress |
+                 EllipsisType | None = None, chunk_size=1048576, **kwargs):
         self.file_path = file
         self.mode = mode  # Requried: requests/utils.py/super_len:'''if "b" not in o.mode'''
         self.file = open(file, mode, **kwargs)
@@ -62,11 +63,24 @@ class FileProgressWrapper:
     def total(self):
         return os.path.getsize(self.file_path)
 
-    def read(self, *args, **kwargs):
-        chunk = self.file.read(self.chunk_size)
-        if self.progress:
-            self.progress.update(self.task, advance=len(chunk))
-        return chunk
+    # def read(self, *args, **kwargs):
+    #     chunk = self.file.read(self.chunk_size)
+    #     if self.progress:
+    #         self.progress.update(self.task, advance=len(chunk))
+    #     return chunk
+
+    def read(self, n: int | EllipsisType = ...):
+        ans = b"" if 'b' in self.mode else ""
+        if n is ...:
+            chunk_size = self.chunk_size
+
+        while chunk := self.file.read(chunk_size):
+            ans += chunk
+            if self.progress:
+                self.progress.update(self.task, advance=len(chunk))
+            if n is not ...:
+                break
+        return ans
 
     def read_generator(self):
         while chunk := self.file.read(self.chunk_size):
@@ -97,7 +111,7 @@ class FileProgressWrapper:
         if self.progress:
             self.progress.stop()
         if self._own_progress:
-            remove(self._own_progress)
+            ProgressUtils.remove(self._own_progress)
 
     def __enter__(self):
         return self
