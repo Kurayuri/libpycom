@@ -2,7 +2,7 @@ from collections.abc import Iterable
 from types import EllipsisType
 from typing import Any
 
-from rich.progress import (BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TaskProgressColumn,
+from rich.progress import (BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn,
                            TimeElapsedColumn, TimeRemainingColumn)
 
 from libpycom.progress.abc import ProgressABC
@@ -13,13 +13,13 @@ class ProgressTask(ProgressABC):
     def create(cls, *args, **kwargs) -> Progress:
         return Progress(
             SpinnerColumn(),
-            "[progress.description]{task.description}",
             MofNCompleteColumn(),
             BarColumn(),
             TaskProgressColumn(),
             TimeElapsedColumn(),
             "/",
-            TimeRemainingColumn()
+            TimeRemainingColumn(),
+            TextColumn("[progress.description]{task.description}")
         )
 
     @classmethod

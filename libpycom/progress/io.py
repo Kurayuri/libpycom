@@ -2,7 +2,7 @@ import os
 from types import EllipsisType
 from typing import Any, Iterable
 
-from rich.progress import (BarColumn, DownloadColumn, Progress, RenderableColumn, SpinnerColumn, TaskProgressColumn,
+from rich.progress import (BarColumn, DownloadColumn, Progress, RenderableColumn, SpinnerColumn, TaskProgressColumn, TextColumn,
                            TimeElapsedColumn, TimeRemainingColumn, TransferSpeedColumn)
 
 from libpycom.progress.abc import ProgressABC, ProgressUtils
@@ -13,7 +13,6 @@ class ProgressIO(ProgressABC):
     def create(cls, *args, **kwargs) -> Progress:
         return Progress(
             SpinnerColumn(),
-            "[progress.description]{task.description}",
             DownloadColumn(),
             BarColumn(),
             TaskProgressColumn(),
@@ -21,6 +20,7 @@ class ProgressIO(ProgressABC):
             "/",
             TimeRemainingColumn(),
             TransferSpeedColumn(),
+            TextColumn("[progress.description]{task.description}"),
         )
 
     @classmethod

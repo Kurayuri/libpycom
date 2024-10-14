@@ -269,3 +269,22 @@ class IterableUtils:
     @staticmethod
     def getFirst(_iterable):
         return next(iter(_iterable))
+
+    def get(_iterable: Iterable, index):
+        if hasattr(_iterable, "__getitem__"):
+            return _iterable[index]
+
+        idx = 0
+        for i in _iterable:
+            if idx == index:
+                return i
+            idx += 1
+        return None
+
+    @staticmethod
+    def align(_iterable, _value, _interval: Any | EllipsisType = ...):
+        basevalue = IterableUtils.getFirst(_iterable)
+        if _interval is ...:
+            _interval = IterableUtils.get(_iterable, 1) - basevalue
+        rounded_delta = ((_value - basevalue) // _interval) * _interval
+        return basevalue + rounded_delta

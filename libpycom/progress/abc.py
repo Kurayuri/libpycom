@@ -79,7 +79,10 @@ class ProgressUtils:
 
     @classmethod
     def remove(cls, progress: Progress | EllipsisType = ...):
-        if progress is ...:
+        if progress is ... or progress is cls._progress:
             progress = cls._progress
+            cls._progress = None
         if hasattr(progress, 'stop'):
             progress.stop()
+            return True
+        return False

@@ -29,4 +29,20 @@ class Formula:
     def __str__(self) -> str:
         return f"<Formula> Func: {inspect.getsourcelines(self._func)[0]} Val: {self.val} Values: {self.values}"
 
+    def copy(self):
+        _new = Formula(self._func)
+        for param in self._params:
+            setattr(_new, param, getattr(self, param))
+        return _new
+
+    def __add__(self, other):
+        if isinstance(other, Formula) and self._func == other._func and self._params == other._params:
+
+            _new = self.copy()
+            for param in self._params:
+                setattr(_new, param, getattr(_new, param) + getattr(other, param))
+            return _new
+        else:
+            raise ValueError("Both Formula objects must have the same function and parameter.")
+
     __repr__ = __str__
