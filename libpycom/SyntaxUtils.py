@@ -2,11 +2,12 @@ import re
 from collections.abc import MutableMapping
 from datetime import datetime
 from numbers import Number
+import string
 from types import EllipsisType
 from typing import Any, Callable, Iterable
+import unicodedata
 
 from libpycom.aliases import ListTuple
-
 __all__ = [
     'ClassUtils', 'DictUtils', 'StrUtils', 'ListTupleUtils', 'IterableUtils'
 ]
@@ -229,16 +230,11 @@ class DictUtils:
 
 
 class StrUtils:
+
     @staticmethod
-    def formatFString(_str, _context):
-        # Match {xxx.xxx}
-        pattern = re.compile(r'\{([^\{\}]+)\}')
+    def format(_str, *args, **kwargs):
 
-        def replace_match(match):
-            dotted_key = match.group(1)
-            return str(DictUtils.getDottedKey(_context, dotted_key))
-
-        return pattern.sub(replace_match, _str)
+        return StrFormatter.format(_str, *args, **kwargs)
 
     @staticmethod
     def isNumber(_str) -> bool:
@@ -252,6 +248,74 @@ class StrUtils:
     def toNumber(_str):
         n = float(_str)
         return int(n) if n.is_integer() else n
+
+    @staticmethod
+    def getWidth(_str):
+        sum = 0
+        for _char in _str:
+            sum += CharUtils.getWidth(_char)
+        return sum
+
+    class FormatSpecUtils:
+        '''
+        https://docs.python.org/3/library/string.html#grammar-token-format-spec-format_spec
+
+        format_spec     ::=  [[fill]align][sign]["z"]["#"]["0"][width][grouping_option]["." precision][type]
+        fill            ::=  <any character>
+        align           ::=  "<" | ">" | "=" | "^"
+        sign            ::=  "+" | "-" | " "
+        width           ::=  digit+
+        grouping_option ::=  "_" | ","
+        precision       ::=  digit+
+        type            ::=  "b" | "c" | "d" | "e" | "E" | "f" | "F" | "g" | "G" | "n" | "o" | "s" | "x" | "X" | "%"
+        '''
+        FormatSpecRegex = r'''
+        ^                            
+        (?P<fill>.)?                 
+        (?P<align>[<>=^])?           
+        (?P<sign>[+\-\s])?           
+        (?P<z>z)?                    
+        (?P<hash>\#)?                
+        (?P<zero>0)?                 
+        (?P<width>[1-9]\d*)?         
+        (?P<grouping_option>[_\,])?  
+        (?P<precision>\.\d+)?        
+        (?P<type>[bcdeEfFgGn%xoX])?  
+        $                            
+        '''
+        FormatSpecKeys = ['fill', 'align', 'sign', 'z', 'hash', 'zero', 'width', 'grouping_option', 'precision', 'type']
+
+        FormatSpecPattern = re.compile(FormatSpecRegex, re.VERBOSE)
+
+        @classmethod
+        def parse(cls, format_spec: str):
+            match = cls.FormatSpecPattern.match(format_spec)
+            if not match:
+                raise ValueError(f"Invalid format_spec: {format_spec}")
+            return match.groupdict()
+
+        @classmethod
+        def construct(cls, format_spec_dict):
+            _new = ""
+            for key in cls.FormatSpecKeys:
+                v = format_spec_dict.get(key, "")
+                _new += str(v) if v is not None else ""
+            return _new
+
+
+class CharUtils:
+    @staticmethod
+    def getWidth(_char):
+        width_type = unicodedata.east_asian_width(_char)
+        if width_type in ('F', 'W'):          # Fullwidth or Wide
+            return 2
+        elif width_type in ('H', 'Na', 'N'):  # Halfwidth, Narrow, Neutral
+            return 1
+        elif width_type == 'A':  # Ambiguous
+            # 这里假设返回 1，但可以根据需要进行调整（例如在 East Asian 环境中可以设为 2）
+            return 1
+        else:
+            return 1
 
 
 class ListTupleUtils:
@@ -288,3 +352,21 @@ class IterableUtils:
             _interval = IterableUtils.get(_iterable, 1) - basevalue
         rounded_delta = ((_value - basevalue) // _interval) * _interval
         return basevalue + rounded_delta
+
+
+class StrFormatter(string.Formatter):
+    # https://docs.python.org/3/library/string.html#formatstrings
+
+    def format_field(self, value, format_spec):
+        format_spec_dict = StrUtils.FormatSpecUtils.parse(format_spec)
+        ans = super().format_field(value, format_spec)
+        cjk_num = StrUtils.getWidth(ans) - len(ans)
+        if cjk_num != 0 and format_spec_dict['width'] is not None:
+            format_spec_dict['width'] = str(int(format_spec_dict['width']) - cjk_num)
+            format_spec = StrUtils.FormatSpecUtils.construct(format_spec_dict)
+            ans = super().format_field(value, format_spec)
+
+        return ans
+
+
+StrFormatter = StrFormatter()
