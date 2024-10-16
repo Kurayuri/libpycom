@@ -1,7 +1,7 @@
 from libpycom.Messager import Messager
 
 
-class __Settings__:
+class Settings:
     def __init__(self) -> None:
         self.messager = Messager()
 
@@ -20,3 +20,4 @@ class __Settings__:
     @MessageProgressLevel.setter
     def MessageProgressLevel(self, level) -> None:
         self.messager.message_progress_level = level
+

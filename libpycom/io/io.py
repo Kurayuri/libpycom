@@ -1,5 +1,5 @@
 from pathlib import Path
-from libpycom.aliases import *
+from libpycom.types import *
 from typing import cast, NewType, Union, TypeAlias
 
 

@@ -1,3 +1,4 @@
+from enum import Enum
 import re
 from collections.abc import MutableMapping
 from datetime import datetime
@@ -7,7 +8,7 @@ from types import EllipsisType
 from typing import Any, Callable, Iterable
 import unicodedata
 
-from libpycom.aliases import ListTuple
+from libpycom.types import ListTuple,ValueEnum
 __all__ = [
     'ClassUtils', 'DictUtils', 'StrUtils', 'ListTupleUtils', 'IterableUtils'
 ]
@@ -270,20 +271,31 @@ class StrUtils:
         type            ::=  "b" | "c" | "d" | "e" | "E" | "f" | "F" | "g" | "G" | "n" | "o" | "s" | "x" | "X" | "%"
         '''
         FormatSpecRegex = r'''
-        ^                            
-        (?P<fill>.)?                 
-        (?P<align>[<>=^])?           
-        (?P<sign>[+\-\s])?           
-        (?P<z>z)?                    
-        (?P<hash>\#)?                
-        (?P<zero>0)?                 
-        (?P<width>[1-9]\d*)?         
-        (?P<grouping_option>[_\,])?  
-        (?P<precision>\.\d+)?        
-        (?P<type>[bcdeEfFgGn%xoX])?  
-        $                            
+        ^
+        (?P<fill>.)?
+        (?P<align>[<>=^])?
+        (?P<sign>[+\-\s])?
+        (?P<z>z)?
+        (?P<hash>\#)?
+        (?P<zero>0)?
+        (?P<width>[1-9]\d*)?
+        (?P<grouping_option>[_\,])?
+        (?P<precision>\.\d+)?
+        (?P<type>[bcdeEfFgGn%xoX])?
+        $
         '''
-        FormatSpecKeys = ['fill', 'align', 'sign', 'z', 'hash', 'zero', 'width', 'grouping_option', 'precision', 'type']
+
+        class FormatSpecKey(ValueEnum):
+            Fill = 'fill'
+            Align = 'align'
+            Sign = 'sign'
+            Z = 'z'
+            Hash = 'hash'
+            Zero = 'zero'
+            Width = 'width'
+            GroupingOption = 'grouping_option'
+            Precision = 'precision'
+            Type = 'type'
 
         FormatSpecPattern = re.compile(FormatSpecRegex, re.VERBOSE)
 
@@ -297,7 +309,7 @@ class StrUtils:
         @classmethod
         def construct(cls, format_spec_dict):
             _new = ""
-            for key in cls.FormatSpecKeys:
+            for key in cls.FormatSpecKey:
                 v = format_spec_dict.get(key, "")
                 _new += str(v) if v is not None else ""
             return _new
@@ -361,8 +373,9 @@ class StrFormatter(string.Formatter):
         format_spec_dict = StrUtils.FormatSpecUtils.parse(format_spec)
         ans = super().format_field(value, format_spec)
         cjk_num = StrUtils.getWidth(ans) - len(ans)
-        if cjk_num != 0 and format_spec_dict['width'] is not None:
-            format_spec_dict['width'] = str(int(format_spec_dict['width']) - cjk_num)
+        if cjk_num != 0 and format_spec_dict[StrUtils.FormatSpecUtils.FormatSpecKey.Width] is not None:
+            format_spec_dict[StrUtils.FormatSpecUtils.FormatSpecKey.Width] = str(
+                int(format_spec_dict[StrUtils.FormatSpecUtils.FormatSpecKey.Width]) - cjk_num)
             format_spec = StrUtils.FormatSpecUtils.construct(format_spec_dict)
             ans = super().format_field(value, format_spec)
 
