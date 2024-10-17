@@ -1,44 +1,37 @@
+from enum import ReprEnum
 from collections import namedtuple
 from collections.abc import Callable, Iterable
+import logging
+from mimetypes import init
+from numbers import Number
 from types import EllipsisType
 from typing import Any
 
+from libpycom.libpycom.Messager import STYLE
+from libpycom.libpycom.SyntaxUtils import IterableUtils
+from libpycom.types import ValueEnum
 from rich.progress import Progress
-
 from libpycom.progress import ProgressUtils, ProgressTask
+from tmp.A import LEVEL
 
 __all__ = ['Messager', 'LEVEL', 'STYLE']
 
 
 _Task = namedtuple('Task', ['parent', 'status'])
+_regestry = {}
 
 
-class Messager:
-    DEBUG = 1
-    INFO = 2
-    WARNING = 3
-    ERROR = 4
-    CRITICAL = 5
+class Messager(logging.Logger):
 
-    RED = "\033[31m"
-    GREEN = "\033[32m"
-    YELLOW = "\033[33m"
-    BLUE = "\033[34m"
-    MAGENTA = "\033[35m"
-    CYAN = "\033[36m"
-    WHITE = "\033[37m"
-    BOLD = "\033[1m"
-    UNDERLINE = "\033[4m"
-    RESET = "\033[0m"
+    class LEVEL(int, ReprEnum):
+        NOTSET = logging.NOTSET
+        DEBUG = logging.DEBUG
+        INFO = logging.INFO
+        WARNING = logging.WARNING
+        ERROR = logging.ERROR
+        CRITICAL = logging.CRITICAL
 
-    class LEVEL:
-        DEBUG = 1
-        INFO = 2
-        WARNING = 3
-        ERROR = 4
-        CRITICAL = 5
-
-    class STYLE:
+    class STYLE(str, ReprEnum):
         RED = "\033[31m"
         GREEN = "\033[32m"
         YELLOW = "\033[33m"
@@ -50,11 +43,19 @@ class Messager:
         UNDERLINE = "\033[4m"
         RESET = "\033[0m"
 
-    def __init__(self, message_level: LEVEL = LEVEL.INFO, message_progress_level: LEVEL = LEVEL.INFO,
+    def __init__(self, name: str = "", level: LEVEL = LEVEL.NOTSET,
+                 message_level: LEVEL | EllipsisType = ...,
+                 message_progress_level: LEVEL | EllipsisType = ...,
+                 log_level: LEVEL | EllipsisType = ...,
                  fn_new_progress: Callable[[Any], Progress] = ProgressTask.new,
                  fn_new_progress_track: Callable[[Any], Iterable[Any]] = ProgressTask.new_track) -> None:
-        self._message_level = message_level
-        self._message_progress_level = message_progress_level
+        super().__init__(name, level)
+
+        self._logger = logging.Logger(name, level=level)
+
+        self._message_level, self._message_progress_level, self._log_level = \
+            IterableUtils.fallback([message_level, message_progress_level, log_level], ..., level)
+
         self.fn_new_progress = fn_new_progress
         self.fn_new_progress_track = fn_new_progress_track
         self._progress = None
@@ -68,27 +69,27 @@ class Messager:
         return self._task_id
 
     @property
-    def message_level(self) -> LEVEL:
+    def MessageLevel(self) -> LEVEL:
         return self._message_level
 
-    @message_level.setter
-    def message_level(self, level: LEVEL) -> None:
+    @MessageLevel.setter
+    def MessageLevel(self, level: LEVEL) -> None:
         self._message_level = level
 
-    def set_message_level(self, level: LEVEL) -> LEVEL:
+    def setMessageLevel(self, level: LEVEL) -> LEVEL:
         prev_level = self._message_level
         self._message_level = level
         return prev_level
 
     @property
-    def message_progress_level(self) -> LEVEL:
-        return self._message_progress_level
+    def MessageProgressLevel(self) -> LEVEL:
+        return self.MessageProgressLevel
 
-    @message_progress_level.setter
-    def message_progress_level(self, level: LEVEL) -> None:
-        self._message_progress_level = level
+    @MessageProgressLevel.setter
+    def MessageProgressLevel(self, level: LEVEL) -> None:
+        self.MessageProgressLevel = level
 
-    def set_message_progress_level(self, level: LEVEL) -> LEVEL:
+    def setMessageProgressLevel(self, level: LEVEL) -> LEVEL:
         prev_level = self._message_progress_level
         self._message_progress_level = level
         return prev_level
@@ -100,9 +101,7 @@ class Messager:
         if level >= self._message_level:
             print(f"{style}{separator.join(map(str, args))}{STYLE.RESET}", end=end)
 
-    def message_progress(self, iterable, *args,
-                         total: int | EllipsisType | None = ..., description: str = "", level=LEVEL.INFO,
-                         **kwargs) -> Iterable[Any]:
+    def message_progress(self, iterable, *args, level: LEVEL = LEVEL.INFO, **kwargs) -> Iterable[Any]:
         if level >= self._message_progress_level:
             prev_task_id = self._task_id
             _prev = prev_task_id
@@ -118,8 +117,8 @@ class Messager:
 
             self._task_status[task_id] = _Task(_prev, 1)
 
-            yield from self.fn_new_progress_track(iterable, *args, total=total,
-                                                  description=description, progress=self._progress, ** kwargs)
+            for item in self.fn_new_progress_track(iterable, *args, progress=self._progress, ** kwargs):
+                yield item
 
             self._task_status[task_id] = self._task_status[task_id]._replace(status=0)
 
@@ -127,14 +126,10 @@ class Messager:
                 # Top Layer
                 self.remove_progress()
         else:
-            yield from iterable
+            return iterable
 
-    def message_enumprogress(self, iterable, *args,
-                             total: int | EllipsisType | None = ..., description: str = "", level=LEVEL.INFO,
-                             **kwargs):
-        return enumerate(self.message_progress(iterable, *args,
-                                               total=total, description=description, level=level,
-                                               **kwargs))
+    def message_enumprogress(self, iterable, *args, level=LEVEL.INFO, **kwargs):
+        return enumerate(self.message_progress(iterable, *args, level=level, **kwargs))
 
     def new_progress(self, *args, level=LEVEL.INFO, **kwargs):
         _progress = self.fn_new_progress(*args, **kwargs)
@@ -142,7 +137,7 @@ class Messager:
             self.remove_progress()
             _progress.start()
         self._progress = _progress
-        if level >= self._message_progress_level:
+        if level >= self.MessageProgressLevel:
             return self._progress
         else:
             return None
@@ -152,29 +147,64 @@ class Messager:
         self._progress = None
 
     # Others
-    def debug(self, *args, style=STYLE.RESET, end: str = "\n", separator: str = " "):
+    def message_debug(self, *args, style=STYLE.RESET, end: str = "\n", separator: str = " "):
         if LEVEL.DEBUG >= self._message_level:
             print(f"{style}{separator.join(map(str, args))}{STYLE.RESET}", end=end)
 
-    def info(self, *args, style=STYLE.RESET, end: str = "\n", separator: str = " "):
+    def message_info(self, *args, style=STYLE.RESET, end: str = "\n", separator: str = " "):
         if LEVEL.INFO >= self._message_level:
             print(f"{style}{separator.join(map(str, args))}{STYLE.RESET}", end=end)
 
-    def warning(self, *args, style=STYLE.RESET, end: str = "\n", separator: str = " "):
+    def message_warning(self, *args, style=STYLE.RESET, end: str = "\n", separator: str = " "):
         if LEVEL.WARNING >= self._message_level:
             print(f"{style}{separator.join(map(str, args))}{STYLE.RESET}", end=end)
 
-    def error(self, *args, style=STYLE.RESET, end: str = "\n", separator: str = " "):
+    def message_error(self, *args, style=STYLE.RESET, end: str = "\n", separator: str = " "):
         if LEVEL.ERROR >= self._message_level:
             print(f"{style}{separator.join(map(str, args))}{STYLE.RESET}", end=end)
 
-    def critial(self, *args, style=STYLE.RESET, end: str = "\n", separator: str = " "):
+    def message_critical(self, *args, style=STYLE.RESET, end: str = "\n", separator: str = " "):
         if LEVEL.CRITICAL >= self._message_level:
             print(f"{style}{separator.join(map(str, args))}{STYLE.RESET}", end=end)
 
+    debug = message_debug
+    info = message_info
+    warning = message_warning
+    error = message_error
+    critical = message_critical
 
-LEVEL = Messager.LEVEL
-STYLE = Messager.STYLE
+    def log_debug(self, *args, **kwargs):
+        super().debug(*args, **kwargs)
+
+    def log_info(self, *args, **kwargs):
+        super().info(*args, **kwargs)
+
+    def log_warning(self, *args, **kwargs):
+        super().warning(*args, **kwargs)
+
+    def log_error(self, *args, **kwargs):
+        super().error(*args, **kwargs)
+
+    def log_critical(self, *args, **kwargs):
+        super().critical(*args, **kwargs)
+
+    NOTSET = LEVEL.NOTSET
+    DEBUG = LEVEL.DEBUG
+    INFO = LEVEL.INFO
+    WARNING = LEVEL.WARNING
+    ERROR = LEVEL.ERROR
+    CRITICAL = LEVEL.CRITICAL
+
+    RED = STYLE.RED
+    GREEN = STYLE.GREEN
+    YELLOW = STYLE.YELLOW
+    BLUE = STYLE.BLUE
+    MAGENTA = STYLE.MAGENTA
+    CYAN = STYLE.CYAN
+    WHITE = STYLE.WHITE
+    BOLD = STYLE.BOLD
+    UNDERLINE = STYLE.UNDERLINE
+    RESET = STYLE.RESET
 
 # Abnormal exit
 #     def __del__(self):
@@ -189,3 +219,29 @@ STYLE = Messager.STYLE
 
 
 # atexit.register(cleanup)
+
+
+LEVEL = Messager.LEVEL
+STYLE = Messager.STYLE
+
+NOTSET = LEVEL.NOTSET
+DEBUG = LEVEL.DEBUG
+INFO = LEVEL.INFO
+WARNING = LEVEL.WARNING
+ERROR = LEVEL.ERROR
+CRITICAL = LEVEL.CRITICAL
+
+RED = STYLE.RED
+GREEN = STYLE.GREEN
+YELLOW = STYLE.YELLOW
+BLUE = STYLE.BLUE
+MAGENTA = STYLE.MAGENTA
+CYAN = STYLE.CYAN
+WHITE = STYLE.WHITE
+BOLD = STYLE.BOLD
+UNDERLINE = STYLE.UNDERLINE
+RESET = STYLE.RESET
+
+
+def getMessager(name):
+    return _regestry.get(name, Messager(name))

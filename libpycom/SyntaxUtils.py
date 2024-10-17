@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import StrEnum
 import re
 from collections.abc import MutableMapping
 from datetime import datetime
@@ -8,7 +8,7 @@ from types import EllipsisType
 from typing import Any, Callable, Iterable
 import unicodedata
 
-from libpycom.types import ListTuple,ValueEnum
+from libpycom.types import ListTuple
 __all__ = [
     'ClassUtils', 'DictUtils', 'StrUtils', 'ListTupleUtils', 'IterableUtils'
 ]
@@ -188,8 +188,8 @@ class DictUtils:
         return differences
 
     @staticmethod
-    def itemsAll(_dict: MutableMapping):
-        def _itemsAll(_obj, parent_key=""):
+    def getAllItems(_dict: MutableMapping):
+        def _getAllItem(_obj, parent_key=""):
             for k, v in _obj.items():
                 # full_key = f"{parent_key}.{k}" if parent_key else k
                 full_key = k
@@ -197,8 +197,8 @@ class DictUtils:
                 yield full_key, v
 
                 if isinstance(v, MutableMapping):
-                    yield from _itemsAll(v, full_key)
-        return _itemsAll(_dict)
+                    yield from _getAllItem(v, full_key)
+        return _getAllItem(_dict)
 
     @staticmethod
     def getFirstItem(_dict: MutableMapping) -> tuple[Any, Any]:
@@ -285,7 +285,7 @@ class StrUtils:
         $
         '''
 
-        class FormatSpecKey(ValueEnum):
+        class FormatSpecKey(StrEnum):
             Fill = 'fill'
             Align = 'align'
             Sign = 'sign'
@@ -341,6 +341,16 @@ class ListTupleUtils:
         return _list
 
 
+class EnumUtils:
+    @staticmethod
+    def getItems(_enum):
+        return _enum._member_map_
+
+    @staticmethod
+    def getKeys(_enum):
+        return _enum._member_names_
+
+
 class IterableUtils:
     @staticmethod
     def getFirst(_iterable):
@@ -365,6 +375,11 @@ class IterableUtils:
         rounded_delta = ((_value - basevalue) // _interval) * _interval
         return basevalue + rounded_delta
 
+    @staticmethod
+    def fallback(_iterable, fault_value, fallback_value):
+        for _item in _iterable:
+            yield fallback_value if _item == fault_value else _item
+
 
 class StrFormatter(string.Formatter):
     # https://docs.python.org/3/library/string.html#formatstrings
@@ -383,3 +398,8 @@ class StrFormatter(string.Formatter):
 
 
 StrFormatter = StrFormatter()
+
+
+class AnyUtils:
+    @staticmethod
+    def fallback()
