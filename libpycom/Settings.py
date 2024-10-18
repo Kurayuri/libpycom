@@ -1,23 +1,26 @@
 from libpycom.Messager import Messager
 
 
-class Settings:
+class SettingsClass:
     def __init__(self) -> None:
         self.messager = Messager()
 
     @property
     def MessageLevel(self) -> Messager.LEVEL:
-        return self.messager.message_level
+        return self.messager.MessageLevel
 
     @MessageLevel.setter
     def MessageLevel(self, level) -> None:
-        self.messager.message_level = level
+        self.messager.MessageLevel = level
 
     @property
     def MessageProgressLevel(self) -> Messager.LEVEL:
-        return self.messager.message_progress_level
+        return self.messager.MessageProgressLevel
 
     @MessageProgressLevel.setter
     def MessageProgressLevel(self, level) -> None:
-        self.messager.message_progress_level = level
+        self.messager.MessageProgressLevel = level
 
+
+Settings = SettingsClass()
+messager = Settings.messager

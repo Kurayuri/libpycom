@@ -1,4 +1,3 @@
-from enum import StrEnum
 import re
 from collections.abc import MutableMapping
 from datetime import datetime
@@ -8,7 +7,7 @@ from types import EllipsisType
 from typing import Any, Callable, Iterable
 import unicodedata
 
-from libpycom.types import ListTuple
+from libpycom.types import ListTuple, ReprEnum
 __all__ = [
     'ClassUtils', 'DictUtils', 'StrUtils', 'ListTupleUtils', 'IterableUtils'
 ]
@@ -285,7 +284,7 @@ class StrUtils:
         $
         '''
 
-        class FormatSpecKey(StrEnum):
+        class FormatSpecKey(str,ReprEnum):
             Fill = 'fill'
             Align = 'align'
             Sign = 'sign'
@@ -398,8 +397,3 @@ class StrFormatter(string.Formatter):
 
 
 StrFormatter = StrFormatter()
-
-
-class AnyUtils:
-    @staticmethod
-    def fallback()

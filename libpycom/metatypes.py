@@ -69,9 +69,10 @@ class ValueEnumMeta(type):
 
 
 class ValueEnum(metaclass=ValueEnumMeta):
-    _mamber_map_ = {}
-
     def __init_subclass__(cls):
+        cls._mamber_map_ = {}
         for key, value in cls.__dict__.items():
             if not key.startswith('_'):
                 cls._mamber_map_[key] = value
+
+
