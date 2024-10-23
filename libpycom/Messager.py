@@ -78,11 +78,11 @@ class Messager(logging.Logger):
 
     @property
     def MessageProgressLevel(self) -> LEVEL:
-        return self.MessageProgressLevel
+        return self._message_progress_level
 
     @MessageProgressLevel.setter
     def MessageProgressLevel(self, level: LEVEL) -> None:
-        self.MessageProgressLevel = level
+        self._message_progress_level = level
 
     def setMessageProgressLevel(self, level: LEVEL) -> LEVEL:
         prev_level = self._message_progress_level

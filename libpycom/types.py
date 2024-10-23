@@ -12,6 +12,7 @@ __all__ = [
 Array: TypeAlias = np.ndarray
 
 PathLike: TypeAlias = IO | str | os.PathLike | pathlib.Path
+PathStr = str | os.PathLike
 
 ListTuple: TypeAlias = list | tuple
 
