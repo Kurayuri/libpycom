@@ -60,6 +60,7 @@ class DictUtils:
                 for k, v in _obj.items():
                     v = _encode(v)
                     k = ClassUtils.encode(k, *args, content=k_content, **kwargs)
+                    k = str(k)
                     ans[k] = v
                 return ans
             else:
@@ -200,6 +201,19 @@ class DictUtils:
         return _getAllItem(_dict)
 
     @staticmethod
+    def getInnerItems(_dict: MutableMapping):
+        def _getInnerItem(_obj, parent_key=""):
+            for k, v in _obj.items():
+                # full_key = f"{parent_key}.{k}" if parent_key else k
+                full_key = k
+
+                if isinstance(v, MutableMapping):
+                    yield from _getInnerItem(v, full_key)
+                else:
+                    yield full_key, v
+        return _getInnerItem(_dict)
+
+    @staticmethod
     def getFirstItem(_dict: MutableMapping) -> tuple[Any, Any]:
         for k, v in _dict.items():
             if isinstance(v, MutableMapping):
@@ -284,7 +298,7 @@ class StrUtils:
         $
         '''
 
-        class FormatSpecKey(str,ReprEnum):
+        class FormatSpecKey(str, ReprEnum):
             Fill = 'fill'
             Align = 'align'
             Sign = 'sign'

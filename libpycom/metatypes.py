@@ -5,6 +5,7 @@ PEP 661 https://peps.python.org/pep-0661/
 """
 
 import sys
+from types import EllipsisType
 
 _registry = {}
 
@@ -67,6 +68,31 @@ class ValueEnumMeta(type):
             return cls._mamber_map_[item]
         raise AttributeError(f"{cls.__name__} has no attribute '{item}'")
 
+    def __repr__(cls) -> str:
+        return f"<enum '{cls.__name__}'>"
+
+    def add(cls, name, value):
+        setattr(cls, name, value)
+        cls._mamber_map_[name] = value
+
+    def update(cls, other):
+        for name, value in other._mamber_map_.items():
+            cls.add(name, value)
+
+    def union(cls, other, typename: str | EllipsisType = ...):
+        if typename is ...:
+            typename = f"{cls.__name__} | {other.__name__}"
+        result = cls.copy(typename)
+        result.update(other)
+        return result
+
+    def copy(cls, typename: str | EllipsisType = ...) :
+        if typename is ...:
+            typename = f"{cls.__name__}"
+        result = type(typename, (cls,), {})
+        result.update(cls)
+        return result
+
 
 class ValueEnum(metaclass=ValueEnumMeta):
     def __init_subclass__(cls):
@@ -74,5 +100,3 @@ class ValueEnum(metaclass=ValueEnumMeta):
         for key, value in cls.__dict__.items():
             if not key.startswith('_'):
                 cls._mamber_map_[key] = value
-
-

@@ -1,3 +1,4 @@
+from collections.abc import MutableMapping
 from libpycom.collections.Dict.DictWrapper import DictWrapper
 from libpycom.SyntaxUtils import DictUtils
 
@@ -32,7 +33,10 @@ class AccessibleDict(DictWrapper):
         _dict = self._dict
 
         for key in keys:
-            _dict = _dict.get(key)
+            if isinstance(_dict, MutableMapping):
+                _dict = _dict.get(key)
+            else:
+                _dict = None
             if _dict is None:
                 _dict = default
                 break

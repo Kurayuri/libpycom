@@ -121,7 +121,7 @@ class Messager(logging.Logger):
                 # Top Layer
                 self.remove_progress()
         else:
-            return iterable
+            yield from iterable
 
     def message_enumprogress(self, iterable, *args, level=LEVEL.INFO, **kwargs):
         return enumerate(self.message_progress(iterable, *args, level=level, **kwargs))
