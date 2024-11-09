@@ -1,3 +1,5 @@
+
+# NOTE: Equivalent to functools.partial
 class FuncWrapper:
     def __init__(self, _func, *args, **kwargs):
         self._func = _func

@@ -353,6 +353,25 @@ class ListTupleUtils:
             _list = type(_list)(ans)
         return _list
 
+    @staticmethod
+    def getShape(_list):
+        if isinstance(_list, ListTuple):
+            return (_list.__len__(),) + ListTupleUtils.getShape(_list[0])
+        return ()
+
+    @staticmethod
+    def getNdim(_list):
+        if isinstance(_list, ListTuple):
+            return 1 + ListTupleUtils.getNdim(_list[0])
+        return 0
+    
+    @staticmethod
+    def getFirst(_list):
+        if isinstance(_list, ListTuple):
+            return ListTupleUtils.getFirst(_list[0])
+        return _list
+
+
 
 class EnumUtils:
     @staticmethod

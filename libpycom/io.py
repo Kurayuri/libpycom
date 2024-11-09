@@ -1,3 +1,4 @@
+import subprocess
 from pathlib import Path
 from libpycom.types import *
 from typing import cast, NewType, Union, TypeAlias
@@ -72,11 +73,16 @@ def save_texts(content: bytes, f: PathLike) -> None:
             writable.write(content)
 
 
-import subprocess
-
 def count_lines(f: PathLike):
     result = subprocess.run(['wc', '-l', f], stdout=subprocess.PIPE)
     return int(result.stdout.split()[0])
+
+
+def save_json(content, f: PathLike, **kwargs) -> None:
+    import json
+    from libpycom.SyntaxUtils import ClassUtils
+    content = ClassUtils.encode(content)
+    save_texts(json.dumps(content, **kwargs), f)
 
 
 if __name__ == "__main__":

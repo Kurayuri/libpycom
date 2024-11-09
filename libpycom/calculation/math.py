@@ -29,3 +29,19 @@ def ewma(iterable: Iterable[float], alpha: float, init_val: float | None = None,
         for i in range(start, stop):
             ans = n_alpha * ans + alpha * iterable[i]
     return ans
+
+
+def mod(a, b, reverse=False):
+    ans = a % b
+    if reverse:
+        if ans != 0:
+            ans = ans - b
+    return ans
+
+
+def clip(x, lower=None, upper=None):
+    upper = min(x, upper) if upper is not None else x
+    return max(lower, upper) if lower is not None else upper
+
+def norm_minmax(x, min_val, max_val):
+    return (x - min_val) / (max_val - min_val)
