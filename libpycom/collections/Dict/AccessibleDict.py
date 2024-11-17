@@ -17,7 +17,7 @@ class AccessibleDict(DictWrapper):
             _dict = _dict[key]
         _dict[keys[-1]] = value
 
-    def setdefault(self, keys, value=None):
+    def setdefault(self, keys, value=None, lazy=False):
         if not isinstance(keys, tuple):
             keys = (keys,)
         _dict = self._dict
@@ -25,9 +25,15 @@ class AccessibleDict(DictWrapper):
         for key in keys[:-1]:
             _dict.setdefault(key, {})
             _dict = _dict[key]
-        return _dict.setdefault(keys[-1], value)
 
-    def get(self, keys, default=None):
+        if lazy:
+            if keys[-1] not in _dict:
+                _dict[keys[-1]] = value()
+            return _dict[keys[-1]]
+        else:
+            return _dict.setdefault(keys[-1], value)
+
+    def get(self, keys, default=None, lazy=False):
         if not isinstance(keys, tuple):
             keys = (keys,)
         _dict = self._dict
@@ -38,7 +44,7 @@ class AccessibleDict(DictWrapper):
             else:
                 _dict = None
             if _dict is None:
-                _dict = default
+                _dict = default() if lazy else default
                 break
         return _dict
 

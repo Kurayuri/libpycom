@@ -1,3 +1,4 @@
+from ast import Tuple
 from collections import namedtuple
 from collections.abc import Callable, Iterable
 import logging
@@ -44,13 +45,12 @@ class Messager(logging.Logger):
                  log_level: LEVEL | EllipsisType = ...,
                  fn_new_progress: Callable[[Any], Progress] = ProgressTask.new,
                  fn_new_progress_track: Callable[[Any], Iterable[Any]] = ProgressTask.new_track) -> None:
-        super().__init__(name, level)
-
-        self._logger = logging.Logger(name, level=level)
 
         self._message_level, self._message_progress_level, self._log_level = \
             IterableUtils.fallback([message_level, message_progress_level, log_level], ..., level)
 
+        super().__init__(name, self._log_level)
+        self._logger = logging.Logger(name, level=self._log_level)
         self.fn_new_progress = fn_new_progress
         self.fn_new_progress_track = fn_new_progress_track
         self._progress = None
@@ -87,6 +87,34 @@ class Messager(logging.Logger):
     def setMessageProgressLevel(self, level: LEVEL) -> LEVEL:
         prev_level = self._message_progress_level
         self._message_progress_level = level
+        return prev_level
+
+    @property
+    def LogLevel(self) -> LEVEL:
+        return self._logger.level
+
+    @LogLevel.setter
+    def LogLevel(self, level: LEVEL) -> None:
+        self._logger.setLevel(level)
+
+    def setLogLevel(self, level: LEVEL) -> LEVEL:
+        prev_level = self.LogLevel
+        self._logger.setLevel(level)
+        return prev_level
+
+    @property
+    def Level(self) -> tuple[LEVEL, LEVEL, LEVEL]:
+        return self._message_level, self._message_progress_level, self.LogLevel
+
+    @Level.setter
+    def Level(self, level: LEVEL) -> None:
+        self.LogLevel = level
+        self._message_level = level
+        self._message_progress_level = level
+
+    def setLevel(self, level: LEVEL) -> tuple[LEVEL, LEVEL, LEVEL]:
+        prev_level = self.Level
+        self.Level = level
         return prev_level
 
     # Recommeneded

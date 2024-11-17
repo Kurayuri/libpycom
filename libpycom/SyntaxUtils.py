@@ -403,7 +403,10 @@ class IterableUtils:
     def align(_iterable, _value, _interval: Any | EllipsisType = ...):
         basevalue = IterableUtils.getFirst(_iterable)
         if _interval is ...:
-            _interval = IterableUtils.get(_iterable, 1) - basevalue
+            try:
+                _interval = IterableUtils.get(_iterable, 1) - basevalue
+            except:
+                return basevalue
         rounded_delta = ((_value - basevalue) // _interval) * _interval
         return basevalue + rounded_delta
 

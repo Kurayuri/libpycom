@@ -4,10 +4,115 @@ PEP 661 https://peps.python.org/pep-0661/
 
 """
 
+from collections.abc import MutableMapping
 import sys
-from types import EllipsisType
+from types import EllipsisType, MappingProxyType
+
 
 _registry = {}
+
+
+class ClassWrapperMeta(type):
+    def __new__(mcls, name, bases, class_dict, key_based=False):
+        cls = super().__new__(mcls, name, bases, class_dict)
+
+        cls.__member_map__ = {}
+        cls.__match_key__ = key_based
+        '''
+        # Deprecated: use Method Resolution Order (MRO) instead
+        def register_attr(obj):
+            # class and its bases
+            if isinstance(obj, type):
+                register_attr(obj.__bases__)
+                register_attr(obj.__dict__)
+            # bases
+            elif isinstance(obj, list | tuple):
+                for item in obj:
+                    register_attr(item)
+            # class_dict
+            elif isinstance(obj, MappingProxyType | MutableMapping):
+                for key, value in obj.items():
+                    if not key.startswith('__'):
+                        cls.__member_map__[key] = value
+
+        # inherited class
+        register_attr(bases)
+        # current class
+        register_attr(class_dict)
+        '''
+        def register_attr(obj):
+            # class's bases and itself
+            if isinstance(obj, type):
+                # register_attr(obj.__mro__[:0:-1])
+
+                register_attr(obj.__dict__)
+                # use __member_map__ to override the inherited class
+                if hasattr(obj, '__member_map__'):
+                    cls.__member_map__.update(obj.__member_map__)
+
+            # bases
+            elif isinstance(obj, list | tuple):
+                for item in obj:
+                    register_attr(item)
+
+            # class_dict
+            elif isinstance(obj, MappingProxyType | MutableMapping):
+                for key, value in obj.items():
+                    if not key.startswith('__'):
+                        cls.__member_map__[key] = value
+
+        '''MRO register'''
+        register_attr(cls.__mro__[:0:-1])
+        register_attr(class_dict)
+
+        return cls
+
+    def __iter__(cls):
+        if cls.__match_key__:
+            return iter(cls.__member_map__.keys())
+        else:
+            return iter(cls.__member_map__.values())
+
+    def __len__(cls):
+        return len(cls.__member_map__)
+
+    def __contains__(cls, item):
+        if cls.__match_key__:
+            return item in cls.__member_map__.keys()
+        else:
+            return item in cls.__member_map__.values()
+
+    def __getattr__(cls, item):
+        return cls.__member_map__[item]
+
+    def __getattribute__(cls, name):
+        if not name.startswith('__') and name in cls.__member_map__:
+            return cls.__member_map__[name]
+        else:
+            return super().__getattribute__(name)
+
+    def __setattr__(cls, name, value):
+        if not name.startswith('__'):
+            cls.__member_map__[name] = value
+        super().__setattr__(name, value)
+
+    def __delattr__(cls, name: str, /) -> None:
+        if not name.startswith('__') and name in cls.__member_map__:
+            del cls.__member_map__[name]
+        return super().__delattr__(name)
+
+    def __items__(cls):
+        return cls.__member_map__.items()
+
+    def __keys__(cls):
+        return cls.__member_map__.keys()
+
+    def __values__(cls):
+        return cls.__member_map__.values()
+
+
+class ClassWrapper(metaclass=ClassWrapperMeta):
+    ...
 
 
 class Sentinel:
@@ -55,17 +160,17 @@ class Sentinel:
 
 class ValueEnumMeta(type):
     def __iter__(cls):
-        return iter(cls._mamber_map_.values())
+        return iter(cls.__member_map__.values())
 
     def __len__(cls):
-        return len(cls._mamber_map_)
+        return len(cls.__member_map__)
 
     def __contains__(cls, item):
-        return item in cls._mamber_map_.values()
+        return item in cls.__member_map__.values()
 
     def __getattr__(cls, item):
-        if item in cls._mamber_map_:
-            return cls._mamber_map_[item]
+        if item in cls.__member_map__:
+            return cls.__member_map__[item]
         raise AttributeError(f"{cls.__name__} has no attribute '{item}'")
 
     def __repr__(cls) -> str:
@@ -73,10 +178,10 @@ class ValueEnumMeta(type):
 
     def add(cls, name, value):
         setattr(cls, name, value)
-        cls._mamber_map_[name] = value
+        cls.__member_map__[name] = value
 
     def update(cls, other):
-        for name, value in other._mamber_map_.items():
+        for name, value in other.__member_map__.items():
             cls.add(name, value)
 
     def union(cls, other, typename: str | EllipsisType = ...):
@@ -86,7 +191,7 @@ class ValueEnumMeta(type):
         result.update(other)
         return result
 
-    def copy(cls, typename: str | EllipsisType = ...) :
+    def copy(cls, typename: str | EllipsisType = ...):
         if typename is ...:
             typename = f"{cls.__name__}"
         result = type(typename, (cls,), {})
@@ -96,7 +201,26 @@ class ValueEnumMeta(type):
 
 class ValueEnum(metaclass=ValueEnumMeta):
     def __init_subclass__(cls):
-        cls._mamber_map_ = {}
+        cls.__member_map__ = {}
         for key, value in cls.__dict__.items():
-            if not key.startswith('_'):
-                cls._mamber_map_[key] = value
+            if not key.startswith('__'):
+                cls.__member_map__[key] = value
+
+
+class PostProcClassMeta(ClassWrapperMeta):
+    def __new__(cls, *args, post_proc=lambda x: x, **kwargs):
+        cls = super().__new__(cls, *args, **kwargs)
+        cls.__post_proc__ = post_proc
+        for attr_name, value in cls.__member_map__.items():
+            cls.__member_map__[attr_name] = cls.__post_proc__(value)
+        return cls
+
+    def __setattr__(cls, name, value):
+        if name.startswith('__'):
+            super().__setattr__(name, value)
+        else:
+            cls.__member_map__[name] = cls.__post_proc__(value)
+
+
+class PostProcClass(metaclass=PostProcClassMeta):
+    ...
