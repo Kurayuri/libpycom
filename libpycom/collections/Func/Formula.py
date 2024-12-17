@@ -1,10 +1,20 @@
+from collections.abc import Callable
 import inspect
+from typing import Iterable
 
 
 class Formula:
-    def __init__(self, func):
-        self._func = func
-        self._params = inspect.signature(func).parameters
+    def __init__(self, func: str | Callable):
+        if isinstance(func, str):
+            self._func = eval(func)
+            self._code = func
+        elif isinstance(func, Callable):
+            self._func = func
+            self._code = inspect.getsourcelines(func)[0]
+        else:
+            raise ValueError("func must be a string or a callable object.")
+
+        self._params = inspect.signature(self._func).parameters
         for param in self._params:
             setattr(self, param, 0)
 
@@ -27,7 +37,7 @@ class Formula:
         return self._func is None
 
     def __str__(self) -> str:
-        return f"<Formula> Func: {inspect.getsourcelines(self._func)[0]} Val: {self.val} Values: {self.values}"
+        return f"<Formula> Func: {self._code} Val: {self.val} Values: {self.values}"
 
     def copy(self):
         _new = Formula(self._func)
@@ -45,4 +55,17 @@ class Formula:
         else:
             raise ValueError("Both Formula objects must have the same function and parameter.")
 
+    def add_(self, other):
+        for param in self._params:
+            setattr(self, param, getattr(self, param) + getattr(other, param))
+
     __repr__ = __str__
+
+    @classmethod
+    def sum(cls, formulas: Iterable):
+        if len(formulas) == 0:
+            return Formula(None)
+        _new = formulas[0].copy()
+        for formula in formulas[1:]:
+            _new.add_(formula)
+        return _new

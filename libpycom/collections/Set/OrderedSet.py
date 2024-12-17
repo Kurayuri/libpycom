@@ -19,3 +19,6 @@ class OrderedSet(MutableSet):
 
     def discard(self, value) -> None:
         self._data.pop(value, None)
+
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__} {list(self._data)}>"

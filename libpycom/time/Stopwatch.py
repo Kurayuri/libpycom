@@ -2,7 +2,7 @@ import time
 from types import EllipsisType
 
 
-class Timer:
+class Stopwatch:
     def __init__(self, text="Elapsed time:", precision: int | EllipsisType = 2):
         self.text = text
         self.precision = precision

@@ -208,18 +208,29 @@ class ValueEnum(metaclass=ValueEnumMeta):
 
 
 class PostProcClassMeta(ClassWrapperMeta):
-    def __new__(cls, *args, post_proc=lambda x: x, **kwargs):
+    def __new__(cls, *args, post_proc=lambda x: x, proc_name=False, **kwargs):
         cls = super().__new__(cls, *args, **kwargs)
         cls.__post_proc__ = post_proc
-        for attr_name, value in cls.__member_map__.items():
-            cls.__member_map__[attr_name] = cls.__post_proc__(value)
+        cls.__proc_name__ = proc_name
+
+        attr_names = list(cls.__member_map__.keys())
+        for attr_name in attr_names:
+            setattr(cls, attr_name, cls.__member_map__[attr_name])
         return cls
 
-    def __setattr__(cls, name, value):
-        if name.startswith('__'):
-            super().__setattr__(name, value)
+    def __proc__(cls, name, value):
+        if cls.__proc_name__:
+            return cls.__post_proc__(name, value)
         else:
-            cls.__member_map__[name] = cls.__post_proc__(value)
+            return name, cls.__post_proc__(value)
+
+    def __setattr__(cls, name, value):
+        _name = name
+        if not name.startswith('__'):
+            name, value = cls.__proc__(name, value)
+        super().__setattr__(name, value)
+        if _name != name and _name in cls.__dict__:
+            delattr(cls, _name)
 
 
 class PostProcClass(metaclass=PostProcClassMeta):

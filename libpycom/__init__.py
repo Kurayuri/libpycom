@@ -6,10 +6,10 @@ libpycom
 __version__ = '0.2.0'
 
 __all__ = ['Messager',
-           'Timer',
+           'Stopwatch',
            'Settings'
            ]
 
-from libpycom.time.Timer import Timer
+from libpycom.time.Stopwatch import Stopwatch
 from libpycom.Messager import Messager
 from libpycom.Settings import Settings

@@ -1,17 +1,17 @@
+import io
 import sys
-from typing import IO, TypeAlias
+from typing import   TypeAlias
 import numpy as np
 import os
-import pathlib
 from libpycom.metatypes import Sentinel, ValueEnum, ClassWrapper, PostProcClass
 
 __all__ = [
-    "Array", "PathLike", "ListTuple", "Missing", "NotGiven", "ValueEnum", "ReprEnum","ClassWrapper", "PostProcClass"
+    "Array", "PathLike", "ListTuple", "Missing", "NotGiven", "ValueEnum", "ReprEnum", "ClassWrapper", "PostProcClass"
 ]
 
 Array: TypeAlias = np.ndarray
 
-PathLike: TypeAlias = IO | str | os.PathLike
+PathLike: TypeAlias = io.IOBase | str | os.PathLike
 PathStr = str | os.PathLike
 
 ListTuple: TypeAlias = list | tuple
@@ -22,6 +22,7 @@ NotGiven = Sentinel('NotGiven', bool_value=False)
 
 ValueEnum = ValueEnum
 ClassWrapper = ClassWrapper
+IterableClass = ClassWrapper
 PostProcClass = PostProcClass
 
 ReprEnum = ValueEnum

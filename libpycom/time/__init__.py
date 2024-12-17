@@ -1,8 +1,8 @@
 
 __all__ = [
     'DatetimeUtils',
-    "Timer"
+    "Stopwatch"
 ]
 
 from libpycom.time.datetime import DatetimeUtils
-from libpycom.time.Timer import Timer
+from libpycom.time.Stopwatch import Stopwatch
