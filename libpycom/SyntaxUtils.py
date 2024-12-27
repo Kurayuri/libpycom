@@ -364,13 +364,26 @@ class ListTupleUtils:
         if isinstance(_list, ListTuple):
             return 1 + ListTupleUtils.getNdim(_list[0])
         return 0
-    
+
     @staticmethod
     def getFirst(_list):
         if isinstance(_list, ListTuple):
             return ListTupleUtils.getFirst(_list[0])
         return _list
 
+    @staticmethod
+    def flatten(_list, ndim: EllipsisType | int = ...):
+        if ndim == 0:
+            return _list
+        ans = []
+        ndim = ... if ndim is ... else ndim - 1
+
+        if isinstance(_list, ListTuple):
+            for i in _list:
+                ans.extend(ListTupleUtils.flatten(i, ndim))
+        else:
+            ans.append(_list)
+        return ans
 
 
 class EnumUtils:
@@ -405,7 +418,7 @@ class IterableUtils:
         if _interval is ...:
             try:
                 _interval = IterableUtils.get(_iterable, 1) - basevalue
-            except:
+            except BaseException:
                 return basevalue
         rounded_delta = ((_value - basevalue) // _interval) * _interval
         return basevalue + rounded_delta
@@ -414,6 +427,12 @@ class IterableUtils:
     def fallback(_iterable, fault_value, fallback_value):
         for _item in _iterable:
             yield fallback_value if _item == fault_value else _item
+
+    @staticmethod
+    def compare(_iterable_a, _iterable_b):
+        _set_a = set(_iterable_a)
+        _set_b = set(_iterable_b)
+        return _set_a - _set_b, _set_b - _set_a
 
 
 class StrFormatter(string.Formatter):

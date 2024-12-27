@@ -1,10 +1,18 @@
 from collections.abc import Callable
+from copy import copy
 import inspect
 from typing import Iterable
 
+from libpycom.debugging.ExceptionMonitor import ExceptionMonitor
+
 
 class Formula:
-    def __init__(self, func: str | Callable):
+    def __init__(self, func: str | Callable | None):
+        if func is None:
+            self._func = None
+            self._code = None
+            return
+
         if isinstance(func, str):
             self._func = eval(func)
             self._code = func
@@ -12,7 +20,7 @@ class Formula:
             self._func = func
             self._code = inspect.getsourcelines(func)[0]
         else:
-            raise ValueError("func must be a string or a callable object.")
+            raise ValueError("func must be None or a string or a callable object.")
 
         self._params = inspect.signature(self._func).parameters
         for param in self._params:
@@ -39,16 +47,18 @@ class Formula:
     def __str__(self) -> str:
         return f"<Formula> Func: {self._code} Val: {self.val} Values: {self.values}"
 
-    def copy(self):
-        _new = Formula(self._func)
-        for param in self._params:
-            setattr(_new, param, getattr(self, param))
-        return _new
+    # def copy(self):
+    #     _new = Formula(self._func)
+    #     for param in self._params:
+    #         setattr(_new, param, getattr(self, param))
+    #     return _new
+    def clone(self):
+        return copy(self)
 
     def __add__(self, other):
+        # FIXME: 'self._func == other._func' is too strict
         if isinstance(other, Formula) and self._func == other._func and self._params == other._params:
-
-            _new = self.copy()
+            _new = copy(self)
             for param in self._params:
                 setattr(_new, param, getattr(_new, param) + getattr(other, param))
             return _new
@@ -63,9 +73,10 @@ class Formula:
 
     @classmethod
     def sum(cls, formulas: Iterable):
-        if len(formulas) == 0:
-            return Formula(None)
-        _new = formulas[0].copy()
-        for formula in formulas[1:]:
-            _new.add_(formula)
+        _new = None
+        for formula in formulas:
+            if _new is None:
+                _new = formula.clone()
+            else:
+                _new.add_(formula)
         return _new
