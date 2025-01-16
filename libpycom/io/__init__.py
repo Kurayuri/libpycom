@@ -1,5 +1,4 @@
-import io
-import os
+from abc import ABC, abstractmethod
 import subprocess
 from contextlib import contextmanager
 from pathlib import Path
@@ -96,12 +95,38 @@ def count_lines(f: PathLike):
     return int(result.stdout.split()[0])
 
 
-def save_json(content, f: PathLike, **kwargs) -> None:
-    import json
+class FileIO(ABC):
+    @staticmethod
+    @abstractmethod
+    def load(f: PathLike, **kwargs):
+        pass
 
-    from libpycom.SyntaxUtils import ClassUtils
-    content = ClassUtils.encode(content)
-    save_texts(json.dumps(content, **kwargs), f)
+    @staticmethod
+    @abstractmethod
+    def save(content, f: PathLike, **kwargs):
+        pass
+
+    write = save
+    read = load
+    dump = save
+
+
+class JsonIO(FileIO):
+    @staticmethod
+    def load(f: PathLike, **kwargs):
+        import orjson
+
+        with open(f, "rb") as f:
+            content = orjson.loads(f.read())
+        return content
+
+    @staticmethod
+    def save(content, f: PathLike, encode=False, **kwargs):
+        import orjson
+        from libpycom.SyntaxUtils import ClassUtils
+        content = ClassUtils.encode(content) if encode else content
+        with open(f, "wb") as f:
+            f.write(orjson.dumps(content, option=orjson.OPT_INDENT_2))
 
 # def load_pickle(f: PathLike, content: bytes = None, mode: str = "r"):
 

@@ -38,6 +38,19 @@ class ClassUtils:
         else:
             return _obj
 
+    @staticmethod
+    def convertToArgs(_obj, convert_underscore_to_hyphen: bool = True):
+        args = []
+        _elems = ClassUtils.getAttrs(_obj)
+        for k, v in _elems.items():
+            if convert_underscore_to_hyphen:
+                k = k.replace('_', '-')
+            args.append(f'--{k}')
+            if isinstance(v, bool) and v:
+                continue
+            args.append(str(v))
+        return args
+
 
 class DictUtils:
     @staticmethod
@@ -384,7 +397,6 @@ class ListTupleUtils:
         else:
             ans.append(_list)
         return ans
-
 
 class EnumUtils:
     @staticmethod
