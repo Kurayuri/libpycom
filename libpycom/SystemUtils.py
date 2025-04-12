@@ -46,5 +46,5 @@ class ShellUtils:
 
 class PathUtils:
     @staticmethod
-    def resolve(path: str | os.PathLike):
+    def resolve(path: str | os.PathLike ):
         return (pathlib.Path(__file__).parent / path).resolve()

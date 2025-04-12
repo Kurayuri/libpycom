@@ -4,6 +4,7 @@ import os
 from types import EllipsisType
 from typing import Callable
 from libpycom.io import count_lines
+from libpycom.Settings import messager as _messager_
 
 
 class CacheFile:
@@ -17,9 +18,14 @@ class CacheFile:
         self.cache_path = self.get_cache_path(path)
 
         self.cache_f = None
-    
+
+        self.messager = _messager_
+
+    def set_messager(self, messager=...):
+        self.messager = _messager_ if messager is ... else messager
+
     def cache(self):
-        print("Auto Cache")
+        self.messager.info("Generate Cache")
         if isinstance(self.fn_cache, int):
             f = open(self.path, "rb")
             cache_f = open(self.cache_path, "wb")
@@ -46,11 +52,11 @@ class CacheFile:
 
         self.cache_f = open(self.cache_path, mode)
         return self.cache_f
-    
+
     @property
     def cache_read(self):
         return "r" in self.cache_f.mode
-    
+
     @property
     def cache_write(self):
         return not self.cache_read
@@ -63,7 +69,9 @@ class CacheFile:
             if strict:
                 f_line = count_lines(self.path)
                 cahce_line = count_lines(self.get_cache_path(self.path))
-                print(f"File: {f_line}, Cache: {cahce_line}")
+                self.messager.info(f"File: {f_line}, Cache: {cahce_line}")
+                if f_line != cahce_line:
+                    self.messager.warning("Cache is invalid")
                 return f_line == cahce_line
             else:
                 return True
