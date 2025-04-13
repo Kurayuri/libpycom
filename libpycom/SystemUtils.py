@@ -46,5 +46,21 @@ class ShellUtils:
 
 class PathUtils:
     @staticmethod
-    def resolve(path: str | os.PathLike ):
+    def resolve(path: str | os.PathLike):
         return (pathlib.Path(__file__).parent / path).resolve()
+
+
+class InteractiveUtils:
+    ITYPE_y_or_N = "y/N"
+    ITYPE_Y_or_n = "Y/n"
+
+    @staticmethod
+    def confirmInput(prompt: str, default: bool = True) -> bool:
+        print(prompt)
+        choices = InteractiveUtils.ITYPE_Y_or_n if default else InteractiveUtils.ITYPE_y_or_N
+        print(f"Proceed ({choices})? ", end="")
+        response = input(prompt).lower()
+        if response == "y" or response == "yes":
+            return True
+        else:
+            return False

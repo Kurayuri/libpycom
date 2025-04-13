@@ -13,7 +13,13 @@ from libpycom.progress import ProgressUtils, ProgressTask
 __all__ = ['Messager', 'LEVEL', 'STYLE']
 
 
-_Task = namedtuple('Task', ['parent', 'status'])
+class _Task:
+    def __init__(self, parent=0, status=0, rich_task_id: int = 0):
+        self.parent = parent
+        self.status = status
+        self.rich_task_id = rich_task_id
+
+
 _regestry = {}
 
 
@@ -55,12 +61,20 @@ class Messager(logging.Logger):
         self.fn_new_progress_track = fn_new_progress_track
         self._progress = None
 
-        self._task_status = [_Task(0, 0)]
-        self._task_id = 0
+        self._task_status = [_Task(0, 0, 0)]
+        self._task_id = 0  # Latest newed task's id
 
-    def _new_task(self):
+    def _new_msg_task(self):
+        _id = self._task_id  # Latest newed task's id
+
+        while _id:
+            if self._task_status[_id].status == 1:  # id is running, thus id is new task's parent
+                break
+            _id = self._task_status[_id].parent
+
         self._task_id += 1
-        self._task_status.append(_Task(0, 0))  # Parent, State: 0-Start,1-Stop
+        self._task_status.append(_Task(_id, 1, 0))  # Parent, State: 0-Stop,1-Start
+
         return self._task_id
 
     @property
@@ -124,40 +138,64 @@ class Messager(logging.Logger):
         if level >= self._message_level:
             print(f"{style}{separator.join(map(str, args))}{STYLE.RESET}", end=end)
 
+    def start_progress_task(self, *args, level: LEVEL = LEVEL.INFO, **kwargs):
+        if level >= self._message_progress_level:
+            _task_id = self._new_msg_task()
+            if self._task_status[_task_id].parent == 0:
+                # Top Layer
+                self._new_progress(*args, level, **kwargs)
+
+            task_id = self._progress.add_task(*args, **kwargs)
+            self._task_status[_task_id].rich_task_id = task_id
+
+            return _task_id
+        else:
+            return None
+
+    def stop_progress_task(self, task_id, level: LEVEL = LEVEL.INFO):
+        if level >= self._message_progress_level:
+            self._task_status[task_id].status = 1
+            rich_task_id = self._task_status[task_id].rich_task_id
+            self._progress.stop_task(rich_task_id)
+            if self._task_status[task_id].parent == 0:
+                # Top Layer
+                self._remove_progress()
+
+    def update_progress(self, task_id, *args, **kwargs):
+        rich_task_id = self._task_status[task_id].rich_task_id
+        self._progress.update(*args, task_id = rich_task_id,**kwargs)
+
+    def advance_progress(self, task_id, *args, **kwargs):
+        rich_task_id = self._task_status[task_id].rich_task_id
+
+        self._progress.advance(*args, task_id = rich_task_id,**kwargs)
+
     def message_progress(self, iterable, *args, level: LEVEL = LEVEL.INFO, **kwargs) -> Iterable[Any]:
         if level >= self._message_progress_level:
-            prev_task_id = self._task_id
-            _prev = prev_task_id
-            task_id = self._new_task()
+            task_id = self._new_msg_task()
 
-            while _prev:
-                if self._task_status[_prev].status == 1:
-                    break
-                _prev = self._task_status[_prev].parent
-            else:
+            if self._task_status[task_id].parent == 0:
                 # Top Layer
-                self.new_progress(*args, level, **kwargs)
-
-            self._task_status[task_id] = _Task(_prev, 1)
+                self._new_progress(*args, level, **kwargs)
 
             for item in self.fn_new_progress_track(iterable, *args, progress=self._progress, ** kwargs):
                 yield item
 
-            self._task_status[task_id] = self._task_status[task_id]._replace(status=0)
+            self._task_status[task_id].status = 0
 
             if self._task_status[task_id].parent == 0:
                 # Top Layer
-                self.remove_progress()
+                self._remove_progress()
         else:
             yield from iterable
 
     def message_enumprogress(self, iterable, *args, level=LEVEL.INFO, **kwargs):
         return enumerate(self.message_progress(iterable, *args, level=level, **kwargs))
 
-    def new_progress(self, *args, level=LEVEL.INFO, **kwargs):
+    def _new_progress(self, *args, level=LEVEL.INFO, **kwargs):
         _progress = self.fn_new_progress(*args, **kwargs)
         if self._progress is not _progress:
-            self.remove_progress()
+            self._remove_progress()
             _progress.start()
         self._progress = _progress
         if level >= self.MessageProgressLevel:
@@ -165,7 +203,7 @@ class Messager(logging.Logger):
         else:
             return None
 
-    def remove_progress(self):
+    def _remove_progress(self):
         ProgressUtils.remove(self._progress)
         self._progress = None
 

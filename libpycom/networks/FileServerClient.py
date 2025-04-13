@@ -132,7 +132,7 @@ class FileServerClient:
                     self.messager.debug(f"Send unchunked: \t{path}")
                     return send_file(path, as_attachment=True, download_name=filename)
                 else:
-                    progress = self.messager.new_progress()
+                    progress = self.messager._new_progress()
                     f = FileProgressWrapper(path, progress=progress, chunk_size=Config.ChunkSize)
                     filesize = f.total
 
@@ -223,7 +223,7 @@ class FileServerClient:
             headers = HeadersHandle.set_Size(filesize, headers)
 
             # FileProgressWrapper (Faster)
-            progress = self.messager.new_progress()
+            progress = self.messager._new_progress()
             f = FileProgressWrapper(path, progress=progress, chunk_size=Config.ChunkSize)
 
             # Progress.wrap_file
