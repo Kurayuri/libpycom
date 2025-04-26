@@ -87,11 +87,17 @@ class DictUtils:
     def map(_dict: MutableMapping, _funcs: Iterable[Callable], _types: Iterable[type],
             _filters: Iterable[Callable | EllipsisType | None] | None = None, strict: bool = False):
         '''
+        Map a dict through a list of functions and types respectively.
+        _dict: dict to map
+        _funcs: list of mapping functions
+        _types: list of types to map (respectively to _func)
+        _filters: list of filters to check if the type should be mapped (respectively to _func)
         _filter = {
             Callable: call to check, true so map
             EllipsisType:  try to map all matched type, if exception, ignore
             None: map all matched type
         }
+        strict: _funcs and _types must be one to one
         '''
         _func_dict = {}
         _filter_dict = {}
@@ -272,9 +278,12 @@ class StrUtils:
             return False
 
     @staticmethod
-    def toNumber(_str):
-        n = float(_str)
-        return int(n) if n.is_integer() else n
+    def toNumber(_str, _dot_zero_is_int: bool = True):
+        if _dot_zero_is_int:
+            n = float(_str)
+            return int(n) if n.is_integer() else n
+        else:
+            return float(_str) if "." in _str else int(_str)
 
     @staticmethod
     def getWidth(_str):
@@ -397,6 +406,7 @@ class ListTupleUtils:
         else:
             ans.append(_list)
         return ans
+
 
 class EnumUtils:
     @staticmethod

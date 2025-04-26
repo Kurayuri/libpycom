@@ -3,8 +3,6 @@ from copy import copy
 import inspect
 from typing import Iterable
 
-from libpycom.debugging.ExceptionMonitor import ExceptionMonitor
-
 
 class Formula:
     def __init__(self, func: str | Callable | None):
