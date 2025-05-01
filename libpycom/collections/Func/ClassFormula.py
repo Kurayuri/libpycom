@@ -26,7 +26,7 @@ class ClassFormula:
 
     @property
     def values(self):
-        return {param: getattr(self, param) for param in self.__params__} 
+        return {param: getattr(self, param) for param in self.__params__}
 
     @property
     def func(self):
@@ -34,7 +34,7 @@ class ClassFormula:
 
     @property
     def code(self):
-        return self.__code__ 
+        return self.__code__
 
     def setNone(self):
         self.__bool_value__ = False
@@ -44,7 +44,7 @@ class ClassFormula:
 
     def __str__(self) -> str:
         return f"<ClassFormula {'' if self.__bool_value__ else False} Func: {self.code} Val: {self.val} Values: {self.values}>"
-   
+
     __repr__ = __str__
 
     def clone(self):
@@ -58,6 +58,15 @@ class ClassFormula:
     def add_(self, other):
         for param in self.__params__:
             setattr(self, param, getattr(self, param) + getattr(other, param))
+
+    def __sub__(self, other):
+        _new = copy(self)
+        _new.sub_(other)
+        return _new
+
+    def sub_(self, other):
+        for param in self.__params__:
+            setattr(self, param, getattr(self, param) - getattr(other, param))
 
     @classmethod
     def sum(cls, formulas: Iterable):
