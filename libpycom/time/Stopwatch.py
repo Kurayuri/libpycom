@@ -9,12 +9,15 @@ class Stopwatch:
         self._elapsed_time = None
 
     def __enter__(self):
-        self.start_time = time.time()
+        # self.start_time = time.time()
+        self.start_time = time.perf_counter_ns()
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self.end_time = time.time()
-        self._elapsed_time = self.end_time - self.start_time
+        # self.end_time = time.time()
+        # self._elapsed_time = self.end_time - self.start_time
+        self.end_time = time.perf_counter_ns()
+        self._elapsed_time = (self.end_time - self.start_time) / 1_000_000_000
         if isinstance(self.precision, int):
             print(f"{self.text} {self._elapsed_time:.{self.precision}f}s")
         else:
