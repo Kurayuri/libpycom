@@ -266,7 +266,7 @@ class StrUtils:
 
     @staticmethod
     def format(_str, *args, **kwargs):
-
+        # Align CJK characters in string formatting.
         return StrFormatter.format(_str, *args, **kwargs)
 
     @staticmethod
@@ -291,6 +291,10 @@ class StrUtils:
         for _char in _str:
             sum += CharUtils.getWidth(_char)
         return sum
+
+    @staticmethod
+    def rreplace(_str, old, new, count=-1):
+        return new.join(_str.rsplit(old, count))
 
     class FormatSpecUtils:
         '''
