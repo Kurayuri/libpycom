@@ -3,6 +3,7 @@ import pathlib
 import shlex
 import subprocess
 import sys
+import ctypes
 from collections.abc import Iterable
 from typing import Any
 
@@ -64,3 +65,32 @@ class InteractiveUtils:
             return True
         else:
             return False
+
+
+class CtypesUtils:
+    @staticmethod
+    def getLibRealpath(lib: ctypes.CDLL) -> str | None:
+        """
+        Get the actual file path of a shared library loaded via ctypes.CDLL.
+        """
+        search_name = os.path.basename(lib._name)
+        
+        with open("/proc/self/maps", "r") as f:
+            for line in f:
+                '''
+                Perline:
+                address perms offset dev inode pathname
+                '''
+                parts = line.split()
+                if len(parts) >= 6:
+                    path = parts[5]
+                    if search_name in path and os.path.exists(path):
+                        return path
+        return None
+
+if __name__ == "__main__":
+    # test: CtypesUtils
+    lib_name = "libstdc++.so"
+    lib = ctypes.CDLL(lib_name)
+    print(f"Library loaded from: {lib._name}")
+    print(f"Library Actual path: {CtypesUtils.getLibRealpath(lib)}")
